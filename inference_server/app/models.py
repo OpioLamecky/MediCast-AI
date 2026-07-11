@@ -1,0 +1,53 @@
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
+
+class SessionCreate(BaseModel):
+    videoUrl: str
+
+class SessionResponse(BaseModel):
+    sessionId: str
+    status: str
+
+class GPUMetrics(BaseModel):
+    gpu_util: float = 0.0
+    memory_used: float = 0.0
+    temperature: float = 0.0
+
+class AnalysisResult(BaseModel):
+    phase: str = ""
+    anatomy_identified: List[str] = []
+    safety_concerns: List[str] = []
+    education_tips: List[str] = []
+    timestamp: float = 0.0
+
+class FrameAnalysisRequest(BaseModel):
+    sessionId: str
+    timestamp: float
+    imageBase64: str
+
+class FrameAnalysisResponse(BaseModel):
+    timestamp: float
+    analysis: AnalysisResult
+    gpu_metrics: Optional[GPUMetrics] = None
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+class ChatRequest(BaseModel):
+    sessionId: str
+    message: str
+    history: Optional[List[ChatMessage]] = []
+
+class ChatResponse(BaseModel):
+    response: str
+
+class ClinicalReportRequest(BaseModel):
+    sessionId: str
+
+class ClinicalReportResponse(BaseModel):
+    report: str
+
+class VideoAnalysisRequest(BaseModel):
+    video_id: str
+    video_details: Dict[str, Any]

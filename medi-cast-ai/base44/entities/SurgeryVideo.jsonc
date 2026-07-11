@@ -1,0 +1,85 @@
+{
+  "name": "SurgeryVideo",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Title of the surgery video"
+    },
+    "procedure_type": {
+      "type": "string",
+      "enum": [
+        "Laparoscopic Cholecystectomy",
+        "Appendectomy",
+        "Hernia Repair",
+        "Knee Arthroscopy",
+        "Hip Replacement",
+        "Cataract Surgery",
+        "Coronary Bypass",
+        "Spinal Fusion",
+        "Hysterectomy",
+        "Gastric Bypass",
+        "Other"
+      ],
+      "description": "Type of surgical procedure"
+    },
+    "surgeon_name": {
+      "type": "string",
+      "description": "Name of the lead surgeon"
+    },
+    "patient_id": {
+      "type": "string",
+      "description": "Anonymized patient identifier"
+    },
+    "surgery_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date the surgery was performed"
+    },
+    "duration_minutes": {
+      "type": "number",
+      "description": "Duration of the surgery in minutes"
+    },
+    "video_url": {
+      "type": "string",
+      "description": "URL of the uploaded video file"
+    },
+    "thumbnail_url": {
+      "type": "string",
+      "description": "Thumbnail image URL"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "uploaded",
+        "analyzing",
+        "analyzed",
+        "error"
+      ],
+      "default": "uploaded",
+      "description": "Current status of the video analysis"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional notes about the surgery"
+    },
+    "department": {
+      "type": "string",
+      "enum": [
+        "General Surgery",
+        "Orthopedics",
+        "Cardiology",
+        "Neurology",
+        "Ophthalmology",
+        "Gynecology",
+        "Urology",
+        "Other"
+      ],
+      "description": "Hospital department"
+    }
+  },
+  "required": [
+    "title",
+    "procedure_type"
+  ]
+}

@@ -1,0 +1,106 @@
+{
+  "name": "AnalysisResult",
+  "type": "object",
+  "properties": {
+    "surgery_video_id": {
+      "type": "string",
+      "description": "Reference to the SurgeryVideo"
+    },
+    "overall_score": {
+      "type": "number",
+      "description": "Overall performance score 0-100"
+    },
+    "risk_level": {
+      "type": "string",
+      "enum": [
+        "low",
+        "moderate",
+        "high",
+        "critical"
+      ],
+      "description": "Overall risk assessment"
+    },
+    "phases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "start_time": {
+            "type": "string"
+          },
+          "end_time": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Identified surgical phases with timestamps"
+    },
+    "instruments_detected": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of surgical instruments detected"
+    },
+    "risk_events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "timestamp": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "recommendation": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Risk events identified during the procedure"
+    },
+    "technique_assessment": {
+      "type": "string",
+      "description": "AI assessment of surgical technique"
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "AI-generated recommendations"
+    },
+    "summary": {
+      "type": "string",
+      "description": "Overall analysis summary"
+    },
+    "efficiency_score": {
+      "type": "number",
+      "description": "Procedural efficiency score 0-100"
+    },
+    "safety_score": {
+      "type": "number",
+      "description": "Safety compliance score 0-100"
+    },
+    "skill_score": {
+      "type": "number",
+      "description": "Technical skill score 0-100"
+    }
+  },
+  "required": [
+    "surgery_video_id"
+  ]
+}
