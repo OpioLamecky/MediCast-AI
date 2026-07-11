@@ -1,0 +1,22 @@
+services:
+  # The Python Backend
+  - type: web
+    name: medicast-backend
+    env: python
+    rootDir: inference_server
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.0
+
+  # The React Frontend
+  - type: web
+    name: medicast-frontend
+    env: static
+    rootDir: medi-cast-ai
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: NODE_VERSION
+        value: 20.0.0
