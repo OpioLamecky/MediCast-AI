@@ -70,7 +70,8 @@ export default function AnalysisDetail() {
       setVideo(v => ({ ...v, status: 'analyzing' }));
 
       // Fire and store the background analysis request
-      analysisPromiseRef.current = fetch(`/api/analyze-video`, {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      analysisPromiseRef.current = fetch(`${apiUrl}/api/analyze-video`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ video_id: id, video_details: video })
