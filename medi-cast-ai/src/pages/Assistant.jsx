@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 // removed base44
-import { Send, Plus, MessageSquare, Loader2, Trash2 } from 'lucide-react';
+import { Send, Plus, MessageSquare, Loader2, Trash2, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import MessageBubble from '@/components/assistant/MessageBubble';
 
@@ -11,6 +11,7 @@ export default function Assistant() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [loadingConvos, setLoadingConvos] = useState(true);
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const messagesEnd = useRef(null);
 
   useEffect(() => {
@@ -24,7 +25,14 @@ export default function Assistant() {
   const loadConversations = () => {
     try {
       const stored = localStorage.getItem('medicast_convos');
-      const convos = stored ? JSON.parse(stored) : [];
+      let convos = stored ? JSON.parse(stored) : [];
+      
+      // Auto-delete chats older than 8 hours
+      const now = Date.now();
+      const eightHours = 8 * 60 * 60 * 1000;
+      convos = convos.filter(c => now - parseInt(c.id) < eightHours);
+      localStorage.setItem('medicast_convos', JSON.stringify(convos));
+      
       setConversations(convos);
       if (convos.length > 0) {
         selectConversation(convos[0]);
@@ -58,6 +66,7 @@ export default function Assistant() {
   const selectConversation = (convo) => {
     setActiveConvoId(convo.id);
     setMessages(convo.messages || []);
+    setShowMobileSidebar(false);
   };
 
   const createNewConversation = () => {
@@ -130,12 +139,15 @@ export default function Assistant() {
   const activeConvo = conversations.find(c => c.id === activeConvoId);
 
   return (
-    <div className="h-[calc(100vh-56px)] md:h-screen flex">
+    <div className="h-[calc(100vh-56px)] md:h-screen flex relative">
       {/* Sidebar */}
-      <div className="w-64 bg-white border-r border-slate-200 flex flex-col max-md:hidden">
-        <div className="p-4 border-b border-slate-100">
-          <Button onClick={createNewConversation} variant="outline" className="w-full text-sm gap-2">
+      <div className={`${showMobileSidebar ? 'fixed inset-0 z-50 w-full' : 'max-md:hidden w-64'} bg-white border-r border-slate-200 flex flex-col`}>
+        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+          <Button onClick={createNewConversation} variant="outline" className="flex-1 text-sm gap-2">
             <Plus className="w-4 h-4" /> New Chat
+          </Button>
+          <Button onClick={() => setShowMobileSidebar(false)} variant="ghost" size="icon" className="md:hidden ml-2">
+            <X className="w-5 h-5" />
           </Button>
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
@@ -164,7 +176,7 @@ export default function Assistant() {
                     e.stopPropagation();
                     deleteConversation(c.id);
                   }}
-                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 hover:text-red-600 rounded text-slate-400 transition-all"
+                  className="opacity-100 md:opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 hover:text-red-600 rounded text-slate-400 transition-all"
                   title="Delete Chat"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -185,7 +197,10 @@ export default function Assistant() {
             </h2>
             <p className="text-[11px] text-slate-400">Surgical analysis AI</p>
           </div>
-          <div className="md:hidden">
+          <div className="md:hidden flex items-center gap-2">
+            <Button onClick={() => setShowMobileSidebar(true)} variant="ghost" size="sm">
+              <Menu className="w-4 h-4" />
+            </Button>
             <Button onClick={createNewConversation} variant="ghost" size="sm">
               <Plus className="w-4 h-4" />
             </Button>

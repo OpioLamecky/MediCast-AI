@@ -33,6 +33,10 @@ app.include_router(ai_router, prefix="/api")
 async def health_check():
     return {"status": "ok"}
 
+from .database import cleanup_old_data_task
+import asyncio
+
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting MediCast Inference Server...")
+    asyncio.create_task(cleanup_old_data_task())

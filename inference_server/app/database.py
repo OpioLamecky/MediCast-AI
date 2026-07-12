@@ -109,3 +109,33 @@ async def get_black_box_entries(session_id: str) -> List[dict]:
     except Exception as e:
         logger.error(f"DB Error get_black_box_entries: {e}")
     return []
+
+async def cleanup_old_data_task():
+    import asyncio
+    while True:
+        try:
+            pool = await get_db_pool()
+            if pool:
+                async with pool.acquire() as conn:
+                    # Clean up old videos from storage bucket
+                    await conn.execute("""
+                        DELETE FROM storage.objects 
+                        WHERE bucket_id = 'videos' 
+                        AND name IN (
+                            SELECT split_part(video_url, '/', -1)
+                            FROM public."SurgeryVideo"
+                            WHERE created_date < timezone('utc'::text, now()) - interval '8 hours'
+                            AND video_url IS NOT NULL
+                        )
+                    """)
+                    # Delete the video records (AnalysisResult cascades)
+                    deleted = await conn.execute("""
+                        DELETE FROM public."SurgeryVideo" 
+                        WHERE created_date < timezone('utc'::text, now()) - interval '8 hours'
+                    """)
+                    logger.info(f"Cleanup task completed: {deleted} videos/analyses older than 8 hours deleted")
+        except Exception as e:
+            logger.error(f"Error in cleanup task: {e}")
+        
+        # Run every hour
+        await asyncio.sleep(3600)
