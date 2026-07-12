@@ -156,7 +156,7 @@ export default function Analyses() {
                         ) : '—'}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex justify-end gap-2 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
                           {a && (
                             <button onClick={() => handleDownload(v, a)} className="p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-900 rounded-md transition-colors" title="Download Word Report">
                               <Download className="w-4 h-4" />

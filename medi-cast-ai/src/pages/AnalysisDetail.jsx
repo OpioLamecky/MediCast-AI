@@ -154,24 +154,28 @@ export default function AnalysisDetail() {
   return (
     <div className="p-6 md:p-8 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <Link to="/" className="text-slate-400 hover:text-slate-600">
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
-        <div className="flex-1">
-          <h1 className="text-xl font-semibold text-slate-900 font-heading">{video.title}</h1>
-          <p className="text-sm text-slate-500">{video.procedure_type} · {video.surgeon_name || 'Unknown surgeon'}</p>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <Link to="/" className="text-slate-400 hover:text-slate-600 shrink-0">
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold text-slate-900 font-heading truncate">{video.title}</h1>
+            <p className="text-sm text-slate-500 truncate">{video.procedure_type} · {video.surgeon_name || 'Unknown surgeon'}</p>
+          </div>
         </div>
         
+        <div className="flex shrink-0 w-full sm:w-auto">
         {analysis ? (
-          <Button onClick={downloadReport} className="bg-slate-900 hover:bg-slate-800 text-white">
+          <Button onClick={downloadReport} className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white">
             <FileText className="w-4 h-4 mr-2" /> Download Word Report
           </Button>
         ) : !analyzing ? (
-          <Button onClick={runAnalysis} className="bg-teal-600 hover:bg-teal-700 text-white">
+          <Button onClick={runAnalysis} className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white">
             <Brain className="w-4 h-4 mr-2" /> Run AI Analysis
           </Button>
         ) : null}
+        </div>
       </div>
 
       {/* Video Player */}

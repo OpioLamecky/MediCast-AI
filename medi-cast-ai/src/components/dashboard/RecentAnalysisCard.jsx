@@ -45,7 +45,7 @@ export default function RecentAnalysisCard({ video, analysis, onDelete }) {
       to={`/analysis/${video.id}`}
       className="block bg-white rounded-xl border border-slate-200/80 p-4 hover:shadow-md hover:border-slate-300 transition-all group relative"
     >
-      <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+      <div className="absolute top-4 right-4 flex items-center gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity z-10">
         {analysis && (
           <button onClick={handleDownload} className="p-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 rounded-md transition-colors" title="Download Word Report">
             <Download className="w-4 h-4" />
