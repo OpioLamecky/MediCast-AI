@@ -77,8 +77,8 @@ export default function UploadVideo() {
       }
 
       // Immediately navigate the user and pass the raw File object in router state so it plays instantly!
-      toast({ title: 'Success', description: 'Video ready for analysis!' });
-      navigate(`/analysis/${video.id}`, { state: { localVideoFile: file } });
+      toast({ title: 'Success', description: 'Video uploaded! Ready for AI analysis.' });
+      navigate(`/analysis/${video.id}`, { state: { localVideoFile: file, freshUpload: true } });
     } catch (err) {
       console.error('[UploadVideo] Failed to insert:', err);
       toast({ title: 'Failed to create record', description: err.message, variant: 'destructive' });

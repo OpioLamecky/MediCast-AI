@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { analyzeSurgicalVideo } from '@/api/aiService';
-import { ArrowLeft, Loader2, Wrench, Brain, FileText, Square } from 'lucide-react';
+import { ArrowLeft, Loader2, Wrench, Brain, FileText, Square, RotateCcw, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import ScoreRing from '@/components/analysis/ScoreRing';
@@ -46,9 +46,15 @@ export default function AnalysisDetail() {
         const { data: v, error: vError } = await supabase.from('SurgeryVideo').select('*').eq('id', id).single();
         if (vError) throw vError;
         setVideo(v);
-        const { data: results, error: rError } = await supabase.from('AnalysisResult').select('*').eq('surgery_video_id', id);
-        if (rError) throw rError;
-        if (results && results.length) setAnalysis(results[0]);
+
+        // When a video is freshly uploaded, do NOT load any prior/stale analysis.
+        // The user must click "Run AI Analysis" to watch and analyze the video first!
+        const isFreshUpload = location.state?.freshUpload;
+        if (!isFreshUpload && v.status === 'analyzed') {
+          const { data: results, error: rError } = await supabase.from('AnalysisResult').select('*').eq('surgery_video_id', id);
+          if (rError) throw rError;
+          if (results && results.length) setAnalysis(results[0]);
+        }
       } catch (e) {
         console.error(e);
       } finally {
@@ -56,13 +62,16 @@ export default function AnalysisDetail() {
       }
     };
     load();
-  }, [id]);
+  }, [id, location.state]);
 
   const runAnalysis = async () => {
+    // Clear any previous report so report CANNOT be downloaded before fresh analysis completes
+    setAnalysis(null);
     setAnalyzing(true);
     setIsRealTimeAnalyzing(true);
 
     if (videoRef.current) {
+      videoRef.current.currentTime = 0;
       videoRef.current.play().catch(e => console.log('Autoplay handled:', e));
     }
 
@@ -139,6 +148,14 @@ export default function AnalysisDetail() {
   };
 
   const downloadReport = async () => {
+    if (!analysis) {
+      toast({
+        title: 'Run Analysis First',
+        description: 'You must run the AI analysis on the video before downloading the report.',
+        variant: 'destructive'
+      });
+      return;
+    }
     try {
       await generateWordReport(video, analysis);
       toast({ title: 'Report downloaded successfully' });
@@ -181,16 +198,26 @@ export default function AnalysisDetail() {
           </div>
         </div>
         
-        <div className="flex shrink-0 w-full sm:w-auto">
-        {analysis ? (
-          <Button onClick={downloadReport} className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white">
-            <FileText className="w-4 h-4 mr-2" /> Download Word Report
-          </Button>
+        <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto flex-wrap">
+        {analysis && !analyzing ? (
+          <>
+            <Button onClick={downloadReport} className="bg-teal-700 hover:bg-teal-800 text-white shadow-sm font-medium">
+              <FileText className="w-4 h-4 mr-2" /> Download Clinical Report (.docx)
+            </Button>
+            <Button onClick={runAnalysis} variant="outline" className="border-slate-300 text-slate-700 hover:bg-slate-50">
+              <RotateCcw className="w-4 h-4 mr-2" /> Re-analyze Video
+            </Button>
+          </>
         ) : !analyzing ? (
-          <Button onClick={runAnalysis} className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white">
+          <Button onClick={runAnalysis} className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 text-white shadow-md font-semibold px-5">
             <Brain className="w-4 h-4 mr-2" /> Run AI Analysis
           </Button>
-        ) : null}
+        ) : (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-teal-50 border border-teal-200 text-teal-800 rounded-lg text-sm font-semibold animate-pulse">
+            <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
+            Analyzing Video...
+          </div>
+        )}
         </div>
       </div>
 
@@ -278,8 +305,24 @@ export default function AnalysisDetail() {
       )}
 
       {/* Analysis Results */}
-      {analysis && (
+      {analysis && !analyzing && (
         <div className="space-y-6">
+          {/* Analysis Verification & Report Ready Card */}
+          <div className="bg-emerald-50 border border-emerald-200/90 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-emerald-950 font-heading">AI Video Analysis Completed & Verified</p>
+                <p className="text-xs text-emerald-700">Clinical performance scores and telemetry generated directly from procedure video.</p>
+              </div>
+            </div>
+            <Button onClick={downloadReport} className="bg-emerald-700 hover:bg-emerald-800 text-white shadow-sm shrink-0 w-full sm:w-auto h-9 text-xs font-semibold">
+              <FileText className="w-3.5 h-3.5 mr-1.5" /> Download Full Word Report (.docx)
+            </Button>
+          </div>
+
           {/* Scores */}
           <div className="bg-white rounded-xl border border-slate-200/80 p-6">
             <h2 className="text-sm font-semibold text-slate-900 mb-5 font-heading">Performance Scores</h2>
@@ -361,12 +404,24 @@ export default function AnalysisDetail() {
         </div>
       )}
 
-      {/* No analysis yet */}
+      {/* No analysis yet - Step 1: Run AI Analysis on This Video */}
       {!analysis && !analyzing && (
-        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-          <Brain className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-600 font-medium">No analysis yet</p>
-          <p className="text-sm text-slate-400 mt-1">Click "Run AI Analysis" to analyze this surgical video</p>
+        <div className="bg-white rounded-xl border border-dashed border-teal-300/80 p-10 text-center shadow-sm bg-gradient-to-b from-teal-50/20 to-transparent">
+          <div className="w-14 h-14 rounded-2xl bg-teal-100/70 text-teal-700 flex items-center justify-center mx-auto mb-4 ring-8 ring-teal-50">
+            <Brain className="w-7 h-7" />
+          </div>
+          <h3 className="text-base font-semibold text-slate-900 font-heading">Step 1: Run AI Analysis on This Video</h3>
+          <p className="text-sm text-slate-600 max-w-md mx-auto mt-1.5 leading-relaxed">
+            The clinical report, performance scores, and surgical phase telemetry are generated dynamically by watching and analyzing this procedure.
+          </p>
+          <div className="mt-5">
+            <Button onClick={runAnalysis} className="bg-teal-600 hover:bg-teal-700 text-white shadow-md font-semibold px-6 h-11">
+              <Brain className="w-4 h-4 mr-2" /> Start AI Video Analysis
+            </Button>
+          </div>
+          <p className="text-xs text-slate-400 mt-3">
+            Click above to start real-time computer vision tracking • Download report unlocks upon completion
+          </p>
         </div>
       )}
         </div>
