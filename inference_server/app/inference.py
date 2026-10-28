@@ -35,13 +35,17 @@ class InferenceEngine:
 
     # Fallback chains — order matters (first = preferred)
     TEXT_FALLBACKS = [
+        "groq/openai/gpt-oss-120b",
+        "groq/qwen/qwen3.8-27b",
+        "gemini/gemini-3.5-flash",
+        "gemini/gemini-3.5-flash-lite",
         "groq/llama-3.3-70b-versatile",
-        "gemini/gemini-2.0-flash",
         "huggingface/meta-llama/Llama-3.3-70B-Instruct",
     ]
 
     VISION_FALLBACKS = [
-        "gemini/gemini-2.0-flash",
+        "gemini/gemini-3.5-flash",
+        "gemini/gemini-3.5-flash-lite",
         "fireworks_ai/accounts/fireworks/models/llama-v3p2-11b-vision-instruct",
     ]
 
