@@ -256,7 +256,7 @@ export const supabase = {
     const realBuilder = realSupabase.from(table);
     const localBuilder = createLocalQueryBuilder(table);
 
-    // Proxy with automatic fallback on network error / TypeError: Failed to fetch
+    // Proxy with automatic fallback on network error / fetch error
     return {
       insert(payload) {
         try {
@@ -268,34 +268,44 @@ export const supabase = {
                 async single() {
                   try {
                     const res = await sel.single();
-                    if (res.error) throw res.error;
+                    if (res?.error) throw res.error;
                     return res;
                   } catch (err) {
-                    console.warn(`[MediCast DB] Supabase insert.select.single failed (${err.message}). Using local store fallback.`);
+                    console.warn(`[MediCast DB] Supabase insert.select.single fallback:`, err?.message);
                     return localBuilder.insert(payload).select().single();
                   }
                 },
-                then(resolve, reject) {
-                  sel.then(res => {
-                    if (res.error) throw res.error;
-                    resolve(res);
-                  }).catch(err => {
-                    console.warn(`[MediCast DB] Supabase insert.select failed (${err.message}). Using local store fallback.`);
+                async then(resolve, reject) {
+                  try {
+                    const res = await sel;
+                    if (res?.error) throw res.error;
+                    if (resolve) resolve(res);
+                  } catch (err) {
+                    console.warn(`[MediCast DB] Supabase insert.select fallback:`, err?.message);
                     localBuilder.insert(payload).select().then(resolve, reject);
-                  });
+                  }
                 }
               };
             },
-            single() {
-              return req.single().catch(() => localBuilder.insert(payload).single());
+            async single() {
+              try {
+                const res = await req.single();
+                if (res?.error) throw res.error;
+                return res;
+              } catch (err) {
+                console.warn(`[MediCast DB] Supabase insert.single fallback:`, err?.message);
+                return localBuilder.insert(payload).single();
+              }
             },
-            then(resolve, reject) {
-              req.then(res => {
-                if (res.error) throw res.error;
-                resolve(res);
-              }).catch(() => {
+            async then(resolve, reject) {
+              try {
+                const res = await req;
+                if (res?.error) throw res.error;
+                if (resolve) resolve(res);
+              } catch (err) {
+                console.warn(`[MediCast DB] Supabase insert fallback:`, err?.message);
                 localBuilder.insert(payload).then(resolve, reject);
-              });
+              }
             }
           };
         } catch {
@@ -323,21 +333,22 @@ export const supabase = {
             async single() {
               try {
                 const res = await req.single();
-                if (res.error) throw res.error;
+                if (res?.error) throw res.error;
                 return res;
               } catch (err) {
-                console.warn(`[MediCast DB] Supabase select.single failed (${err.message}). Falling back to local store.`);
+                console.warn(`[MediCast DB] Supabase select.single fallback:`, err?.message);
                 return localBuilder.select(columns).single();
               }
             },
-            then(resolve, reject) {
-              req.then(res => {
-                if (res.error) throw res.error;
-                resolve(res);
-              }).catch(err => {
-                console.warn(`[MediCast DB] Supabase select failed (${err.message}). Falling back to local store.`);
+            async then(resolve, reject) {
+              try {
+                const res = await req;
+                if (res?.error) throw res.error;
+                if (resolve) resolve(res);
+              } catch (err) {
+                console.warn(`[MediCast DB] Supabase select fallback:`, err?.message);
                 localBuilder.select(columns).then(resolve, reject);
-              });
+              }
             }
           };
           return chain;
@@ -348,20 +359,30 @@ export const supabase = {
 
       update(updates) {
         return {
-          eq(col, val) {
-            return realBuilder.update(updates).eq(col, val).catch(() => {
+          async eq(col, val) {
+            try {
+              const res = await realBuilder.update(updates).eq(col, val);
+              if (res?.error) throw res.error;
+              return res;
+            } catch (err) {
+              console.warn(`[MediCast DB] Supabase update.eq fallback:`, err?.message);
               return localBuilder.update(updates).eq(col, val);
-            });
+            }
           }
         };
       },
 
       delete() {
         return {
-          eq(col, val) {
-            return realBuilder.delete().eq(col, val).catch(() => {
+          async eq(col, val) {
+            try {
+              const res = await realBuilder.delete().eq(col, val);
+              if (res?.error) throw res.error;
+              return res;
+            } catch (err) {
+              console.warn(`[MediCast DB] Supabase delete.eq fallback:`, err?.message);
               return localBuilder.delete().eq(col, val);
-            });
+            }
           }
         };
       }

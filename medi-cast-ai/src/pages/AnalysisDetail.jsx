@@ -67,7 +67,11 @@ export default function AnalysisDetail() {
     }
 
     try {
-      await supabase.from('SurgeryVideo').update({ status: 'analyzing' }).eq('id', id);
+      try {
+        await supabase.from('SurgeryVideo').update({ status: 'analyzing' }).eq('id', id);
+      } catch (statusErr) {
+        console.warn('Status update non-blocking:', statusErr);
+      }
       setVideo(v => ({ ...v, status: 'analyzing' }));
 
       // Kick off resilient AI surgical analysis
