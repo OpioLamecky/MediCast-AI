@@ -4,6 +4,7 @@ import { Send, Plus, MessageSquare, Loader2, Trash2, Menu, X, Sparkles, Compass 
 import { Button } from '@/components/ui/button';
 import MessageBubble from '@/components/assistant/MessageBubble';
 import { getSavedConversations, saveConversations, createNewChat } from '@/lib/chatStorage';
+import { sendChatMessage } from '@/api/aiService';
 
 export default function Assistant() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -106,21 +107,8 @@ export default function Assistant() {
     setSending(true);
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiUrl}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: 'general',
-          message: userMsg.content,
-          history: targetConvo.messages || []
-        })
-      });
-
-      if (!response.ok) throw new Error('Chat request failed');
-      const data = await response.json();
-
-      const aiMsg = { role: 'assistant', content: data.response };
+      const responseText = await sendChatMessage(userMsg.content, targetConvo.messages || []);
+      const aiMsg = { role: 'assistant', content: responseText };
       targetConvo.messages = [...updatedMessages, aiMsg];
 
       // Update title on first response if still default
