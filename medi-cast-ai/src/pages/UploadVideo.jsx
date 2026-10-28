@@ -50,23 +50,28 @@ export default function UploadVideo() {
 
     setUploading(true);
     try {
+      // Create local blob URL for immediate high-performance playback
+      const localBlobUrl = file ? URL.createObjectURL(file) : '';
+
       // Create the database record immediately, set as uploaded so it doesn't spin
       const { data: video, error: insertError } = await supabase.from('SurgeryVideo').insert([{
         ...form,
         duration_minutes: form.duration_minutes ? Number(form.duration_minutes) : null,
-        video_url: '',
+        video_url: localBlobUrl,
         status: 'uploaded', // Skip the 'uploading' status entirely!
       }]).select().single();
 
       if (insertError) throw insertError;
 
-      // Start the real upload in the background, but we don't care how long it takes
+      // Start cloud upload if storage is configured
       if (file) {
         const fileName = `${Date.now()}_${file.name}`;
         supabase.storage.from('videos').upload(fileName, file).then(async ({ error: uploadError }) => {
           if (!uploadError) {
             const { data: urlData } = supabase.storage.from('videos').getPublicUrl(fileName);
-            await supabase.from('SurgeryVideo').update({ video_url: urlData.publicUrl }).eq('id', video.id);
+            if (urlData?.publicUrl) {
+              await supabase.from('SurgeryVideo').update({ video_url: urlData.publicUrl }).eq('id', video.id);
+            }
           }
         }).catch(() => {});
       }
@@ -75,6 +80,7 @@ export default function UploadVideo() {
       toast({ title: 'Success', description: 'Video ready for analysis!' });
       navigate(`/analysis/${video.id}`, { state: { localVideoFile: file } });
     } catch (err) {
+      console.error('[UploadVideo] Failed to insert:', err);
       toast({ title: 'Failed to create record', description: err.message, variant: 'destructive' });
       setUploading(false);
     }
