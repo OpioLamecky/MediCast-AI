@@ -13,7 +13,7 @@ export default function AppLayout() {
   const location = useLocation();
 
   return (
-    <div className="min-h-[100dvh] bg-slate-50 flex flex-col md:flex-row">
+    <div className="min-h-[100dvh] bg-slate-950 w-full max-w-full overflow-x-hidden flex flex-col md:flex-row">
       {/* Sidebar */}
       <aside className="w-64 bg-white border-r border-slate-200 flex flex-col fixed h-full z-30 max-md:hidden">
         <div className="p-6 border-b border-slate-100">
@@ -80,7 +80,7 @@ export default function AppLayout() {
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 md:ml-64 pt-14 md:pt-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
+      <main className="flex-1 min-w-0 md:ml-64 pt-14 md:pt-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0 w-full max-w-full overflow-x-hidden">
         <Outlet />
       </main>
     </div>
