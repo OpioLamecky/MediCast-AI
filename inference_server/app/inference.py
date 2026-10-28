@@ -167,13 +167,18 @@ class InferenceEngine:
         Takes a list of standard message dictionaries: [{"role": "system", "content": "..."}, ...]
         and returns the raw text response.
         """
-        return await self._call_with_fallback(
+        response = await self._call_with_fallback(
             models=self.TEXT_FALLBACKS,
             messages=messages,
-            max_tokens=1000,
+            max_tokens=2500,
             json_mode=False,
             label="chat",
         )
+        # Normalize any compressed table separators (e.g. '||' or '|||') into clean line breaks
+        import re
+        if response and "||" in response:
+            response = re.sub(r'\|{2,}\s*', '\n| ', response)
+        return response
 
     async def analyze_frame_parallel(self, image_b64: str) -> AnalysisResult:
         # Run specialized agents in parallel

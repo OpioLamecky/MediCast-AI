@@ -34,11 +34,25 @@ async def chat_with_assistant(request: ChatRequest):
         else:
             context_data = report
         
+        formatting_guidelines = (
+            "--- CHAT UI FORMATTING & STRUCTURE RULES ---\n"
+            "Format your answers with clean visual hierarchy so they are easily readable in a medical chat interface:\n"
+            "1. Section Headers: Use Markdown headers (##, ###) to separate categories/sections.\n"
+            "2. Structured Lists: Present lists of risk factors, complications, or procedures using bold bullet points with indented sub-bullets:\n"
+            "   - **Factor / Item Name**: Brief clinical summary.\n"
+            "     * *Clinical Impact / Mechanism*: Explain why it matters.\n"
+            "     * *Key Literature / Guidelines*: Include textbook/journal citations inline.\n"
+            "3. NO Cramped Tables: Do NOT generate dense, multi-column raw pipe tables (`| col | col |`). They become cramped and hard to read on mobile and chat screens. Use structured categorized lists as outlined above.\n"
+            "4. Clean Spacing: Leave a blank line between major points and sections so the text never bunches together.\n"
+            "5. Completeness: Conclude all thoughts and sections thoroughly without trailing off or cutting off mid-sentence."
+        )
+
         system_prompt = (
             f"{base_agent_prompt}\n\n"
             "--- SURGICAL CONTEXT ---\n"
             "Use the following surgical context to anchor your answers if relevant:\n"
             f"{context_data}\n\n"
+            f"{formatting_guidelines}\n\n"
         )
         
         # Build structured messages array for LiteLLM
