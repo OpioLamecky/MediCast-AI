@@ -13,9 +13,9 @@ export default function AppLayout() {
   const location = useLocation();
 
   return (
-    <div className="min-h-[100dvh] bg-slate-950 w-full max-w-full overflow-x-hidden flex flex-col md:flex-row">
+    <div className="min-h-[100dvh] bg-[#FAF8F5] w-full max-w-full overflow-x-hidden flex flex-col md:flex-row">
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col fixed h-full z-30 max-md:hidden">
+      <aside className="w-64 bg-white border-r border-stone-200/80 flex flex-col fixed h-full z-30 max-md:hidden">
         <div className="p-6 border-b border-slate-100">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center">
