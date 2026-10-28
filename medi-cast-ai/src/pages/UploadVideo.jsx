@@ -128,7 +128,7 @@ export default function UploadVideo() {
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="surgeon">Surgeon Name</Label>
-            <Input id="surgeon" value={form.surgeon_name} onChange={e => setForm(f => ({ ...f, surgeon_name: e.target.value }))} placeholder="Dr. Smith" className="mt-1.5" />
+            <Input id="surgeon" value={form.surgeon_name} onChange={e => setForm(f => ({ ...f, surgeon_name: e.target.value }))} placeholder="Enter your name" className="mt-1.5" />
           </div>
           <div>
             <Label htmlFor="patient">Patient ID (Anonymized)</Label>
