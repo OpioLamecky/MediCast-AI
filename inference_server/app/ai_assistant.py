@@ -22,6 +22,7 @@ if AGENT_PROMPT_PATH.exists():
 async def chat_with_assistant(request: ChatRequest):
     """
     Handles queries to the AI assistant regarding the surgical session.
+    Uses multi-provider fallback (Groq → Gemini → HuggingFace).
     """
     try:
         # Fetch context about the surgery to provide to the LLM
@@ -49,10 +50,18 @@ async def chat_with_assistant(request: ChatRequest):
                 
         messages.append({"role": "user", "content": request.message})
         
-        # We use the new chat inference engine via LiteLLM
+        # The engine tries multiple providers automatically (Groq → Gemini → HF)
         reply = await engine.chat(messages)
         
         return ChatResponse(response=reply)
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Return a friendly response instead of crashing with a 500
+        logger.error(f"Chat endpoint error: {e}")
+        return ChatResponse(
+            response=(
+                "I'm temporarily unable to process your request. "
+                "Our AI providers are being rate-limited or unavailable right now. "
+                "Please try again in a moment."
+            )
+        )
