@@ -241,54 +241,76 @@ export function extractFrameOpticalMetrics(videoEl, canvasEl, prevGrayRef) {
   };
 }
 
-export function evaluateImmediateOpticalHazards(metrics, elapsedSeconds = 0) {
-  if (!metrics) return [];
+export function assessCameraFeedClarity(metrics) {
+  if (!metrics) {
+    return { isClear: false, status: 'initializing', reason: 'Waiting for camera video frames...' };
+  }
+  if (metrics.brightness < 14) {
+    return {
+      isClear: false,
+      status: 'dark',
+      reason: `Camera feed is dark/covered (${metrics.brightness}% brightness). Check room lighting, webcam privacy shutter, or click Reload if camera permissions were just updated.`
+    };
+  }
+  if (metrics.contrastScore < 11) {
+    return {
+      isClear: false,
+      status: 'blurry',
+      reason: `Camera feed lacks visual detail (${metrics.contrastScore}% contrast) — lens may be out of focus, fogged, or obstructed.`
+    };
+  }
+  return { isClear: true, status: 'clear', reason: 'Camera feed clear and illuminated.' };
+}
+
+export function evaluateImmediateOpticalHazards(metrics, elapsedSeconds = 0, isConfirmedSurgicalScene = false) {
+  // Never emit intraoperative surgical bleeding/motion/occlusion alerts unless an actual surgical scene is confirmed!
+  if (!metrics || !isConfirmedSurgicalScene) return [];
   const mins = String(Math.floor(elapsedSeconds / 60)).padStart(2, '0');
   const secs = String(Math.floor(elapsedSeconds % 60)).padStart(2, '0');
   const ts = `${mins}:${secs}`;
   const hazards = [];
 
-  if (metrics.brightness < 11) {
+  if (metrics.brightness < 12) {
     hazards.push({
       id: `opt_dark_${Math.floor(elapsedSeconds / 6)}`,
       severity: 'high',
-      title: 'Optical Occlusion / Low Illumination',
-      description: `Camera illumination critically low (${metrics.brightness}%). Scope lens may be occluded by tissue or light source dimmed.`,
-      recommendation: 'Withdraw camera tip slightly, inspect light cable, and restore clear visual corridor before advancing instruments.',
+      title: 'Intraoperative Optical Occlusion',
+      description: `Scope illumination dropped critically (${metrics.brightness}%) during active surgery.`,
+      recommendation: 'Pause instrument advancement, withdraw scope tip slightly, and restore clear visual field.',
       timestamp: ts,
       source: 'Optical Sensor'
     });
-  } else if (metrics.contrastScore < 16 && metrics.brightness >= 18) {
+  } else if (metrics.contrastScore < 14 && metrics.brightness >= 18) {
     hazards.push({
       id: `opt_fog_${Math.floor(elapsedSeconds / 8)}`,
       severity: 'moderate',
       title: 'Lens Fogging / Surgical Plume Detected',
-      description: `Reduced optical contrast (${metrics.contrastScore}%) indicates condensation or cautery smoke across visual field.`,
-      recommendation: 'Activate smoke evacuation or clean/warm scope lens to maintain micro-anatomical plane clarity.',
+      description: `Reduced optical contrast (${metrics.contrastScore}%) across active surgical field.`,
+      recommendation: 'Evacuate cautery plume or clean scope lens to maintain tissue plane visibility.',
       timestamp: ts,
       source: 'Optical Sensor'
     });
   }
 
-  if (metrics.rednessRatio >= 48) {
+  if (metrics.rednessRatio >= 52) {
     hazards.push({
       id: `opt_bleed_${Math.floor(elapsedSeconds / 6)}`,
-      severity: metrics.rednessRatio >= 68 ? 'critical' : 'high',
+      severity: metrics.rednessRatio >= 70 ? 'critical' : 'high',
       title: 'Hemorrhagic Chromaticity Spike',
-      description: `Elevated red-spectrum saturation (${metrics.rednessRatio}%) across operative field — potential active oozing or pooling.`,
-      recommendation: 'Pause sharp dissection, irrigate & suction operative bed, and achieve targeted bipolar/clip hemostasis.',
+      description: `Elevated red-spectrum saturation (${metrics.rednessRatio}%) across operative bed — potential active oozing.`,
+      recommendation: 'Pause dissection, irrigate/suction operative field, and verify targeted hemostasis.',
       timestamp: ts,
       source: 'Hemorrhage Monitor'
     });
   }
 
-  if (metrics.motionScore >= 52) {
+  if (metrics.motionScore >= 55) {
     hazards.push({
       id: `opt_motion_${Math.floor(elapsedSeconds / 5)}`,
-      severity: metrics.motionScore >= 75 ? 'high' : 'moderate',
+      severity: metrics.motionScore >= 76 ? 'high' : 'moderate',
       title: 'Rapid Instrument / Camera Motion Spike',
-      description: `High frame-to-frame motion velocity (${metrics.motionScore}%). Abrupt traction or camera instability detected.`,
-      recommendation: 'Stabilize camera horizon and reduce instrument tip velocity near delicate neurovascular planes.',
+      description: `High frame-to-frame motion velocity (${metrics.motionScore}%) near surgical target.`,
+      recommendation: 'Stabilize camera fulcrum and reduce traction velocity near delicate structures.',
       timestamp: ts,
       source: 'Kinematics Tracker'
     });
@@ -362,7 +384,8 @@ async function callGroqVisionDirect(prompt, imageBase64, maxTokens = 900) {
             }
           ],
           max_tokens: maxTokens,
-          temperature: 0.25,
+          temperature: 0.2,
+          ...(model.includes('qwen') ? { reasoning_effort: 'none' } : {}),
           response_format: { type: 'json_object' }
         })
       });
@@ -384,7 +407,7 @@ async function callGroqVisionDirect(prompt, imageBase64, maxTokens = 900) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Real-Time Live Surgical Frame Analysis (Camera & Video Stream)
+// Real-Time Live Surgical Frame Analysis (Strict Visual Verification)
 // ─────────────────────────────────────────────────────────────
 export async function analyzeLiveSurgeryFrame({
   imageBase64,
@@ -393,16 +416,35 @@ export async function analyzeLiveSurgeryFrame({
   frameIndex = 0,
   surgeonName = 'Attending Surgeon',
   sessionId = 'live_session',
-  frameMetrics = null
+  frameMetrics = null,
+  isVirtualScope = false
 }) {
   const mins = String(Math.floor(elapsedSeconds / 60)).padStart(2, '0');
   const secs = String(Math.floor(elapsedSeconds % 60)).padStart(2, '0');
   const ts = `${mins}:${secs}`;
   const profile = getProcedureProfile(procedureType);
-  const opticalHazards = evaluateImmediateOpticalHazards(frameMetrics, elapsedSeconds);
+
+  // Virtual scope is an explicit simulated surgical feed
+  if (isVirtualScope) {
+    const simHazards = evaluateImmediateOpticalHazards(frameMetrics, elapsedSeconds, true);
+    return buildDeterministicLiveFrame(profile, procedureType, ts, elapsedSeconds, frameIndex, simHazards, frameMetrics);
+  }
+
+  // 1. Pre-check optical clarity before scoring anything: dark, covered, or zero-detail frames are NOT surgeries!
+  const clarity = assessCameraFeedClarity(frameMetrics);
+  if (!clarity.isClear) {
+    return buildNonSurgicalFrameResult({
+      ts,
+      elapsedSeconds,
+      reason: clarity.reason,
+      feedQuality: clarity.status,
+      engineName: 'Optical Clarity Gate'
+    });
+  }
+
   const apiUrl = import.meta.env.VITE_API_URL || '';
 
-  // 1. Try Backend Live Frame API if configured
+  // 2. Try Backend Live Frame API if configured
   if (apiUrl && imageBase64) {
     try {
       const controller = new AbortController();
@@ -425,47 +467,47 @@ export async function analyzeLiveSurgeryFrame({
       if (res.ok) {
         const json = await res.json();
         if (json?.analysis) {
-          return normalizeLiveFrameResult(json.analysis, profile, ts, elapsedSeconds, opticalHazards, 'Backend Vision AI');
+          return normalizeLiveFrameResult(json.analysis, profile, ts, elapsedSeconds, frameMetrics, 'Backend Vision AI');
         }
       }
     } catch (e) {
-      console.warn('[Live AI] Backend frame endpoint fallback:', e.message);
+      console.warn('[Live AI] Backend frame endpoint unavailable, using direct Vision AI:', e.message);
     }
   }
 
-  // 2. Try Direct Groq Multimodal Vision API on actual live PC camera frame
-  const visionPrompt = `You are MediCast AI Live Intraoperative Surgical Monitor watching a real-time camera stream.
-Target Procedure: ${procedureType}
-Surgeon: ${surgeonName || 'Surgical Team'}
-Stream Timestamp: ${ts}
-Optical Sensor Metrics: Brightness=${frameMetrics?.brightness ?? 55}%, Redness/Vascularity=${frameMetrics?.rednessRatio ?? 12}%, MotionVelocity=${frameMetrics?.motionScore ?? 10}%, Contrast=${frameMetrics?.contrastScore ?? 50}%
-Expected Procedure Phases: ${profile.phases.join(' -> ')}
+  // 3. Direct Groq Multimodal Vision API (qwen/qwen3.8-27b) — strictly inspects actual camera pixels!
+  const visionPrompt = `You are MediCast AI Intraoperative Vision Verifier & Surgical Monitor.
+Selected Target Procedure: ${procedureType}
+Timestamp: ${ts}
+Optical Metrics: Brightness=${frameMetrics?.brightness ?? 50}%, Contrast=${frameMetrics?.contrastScore ?? 40}%, Redness=${frameMetrics?.rednessRatio ?? 10}%
 
-Inspect the live video frame accurately:
-- If it shows an actual surgical/endoscopic/microscopic scene, identify the exact surgical phase, anatomical landmarks, surgical instruments, and any intraoperative risks (bleeding, thermal proximity, vital structure hazard, plane deviation).
-- If the PC camera shows a simulation setup, hands, surgical training model, instruments on tray, or operating room operator testing the live stream, acknowledge what is genuinely visible in the frame while providing relevant ${procedureType} intraoperative readiness checks, instrument/ergonomic observations, or optical alignment alerts!
-- Always generate 1 concise, clinically valuable alert or status check in "alerts".
+STRICT ZERO-HALLUCINATION RULES:
+1. Examine what is LITERALLY visible inside this image frame.
+2. Set "is_surgical_scene": true ONLY if the image genuinely shows an actual surgical procedure, open incision, endoscopic/laparoscopic/arthroscopic/microscopic operative view, or a clear surgical tissue dissection model, AND the image is clear enough to evaluate.
+3. If the image shows a normal room, person, face, ceiling, wall, desk, laptop, empty background, blurry/out-of-focus view, or anything that is NOT a surgical procedure:
+   - You MUST set "is_surgical_scene": false
+   - Set "safety_score": null, "efficiency_score": null, "skill_score": null
+   - Set "risk_level": "standby"
+   - Set "phase": "No Surgery Detected in Camera View"
+   - Set "anatomy_identified": [] and "instruments_detected": []
+   - Set "alerts": [] (DO NOT invent surgical alerts, cannulas, portals, bleeding, or scores!)
+   - Set "scene_observed" to an honest 1-sentence description of what the camera actually shows (e.g. "Camera shows an indoor room / person; no surgical procedure or operative site is visible.").
+4. ONLY when "is_surgical_scene" is true: identify the real visible surgical phase, visible anatomy, visible instruments, genuine safety/efficiency/skill scores (0-100), and real intraoperative warnings/alerts.
 
 Return strictly valid JSON:
 {
-  "phase": "Current surgical phase or live camera stage",
-  "scene_observed": "1-sentence factual description of what the camera currently sees",
-  "risk_level": "low",
-  "safety_score": 94,
-  "efficiency_score": 90,
-  "skill_score": 92,
-  "anatomy_identified": ["Structure 1", "Structure 2"],
-  "instruments_detected": ["Instrument or object 1"],
-  "alerts": [
-    {
-      "severity": "low",
-      "title": "Alert or Safe Plane Confirmation Title",
-      "description": "Specific real-time warning or observation from frame",
-      "recommendation": "Actionable intraoperative guidance",
-      "timestamp": "${ts}"
-    }
-  ],
-  "guidance_tip": "Concise real-time surgical coaching tip for ${procedureType}"
+  "is_surgical_scene": false,
+  "feed_quality": "clear",
+  "phase": "No Surgery Detected in Camera View",
+  "scene_observed": "Factual description of what is literally in the frame",
+  "risk_level": "standby",
+  "safety_score": null,
+  "efficiency_score": null,
+  "skill_score": null,
+  "anatomy_identified": [],
+  "instruments_detected": [],
+  "alerts": [],
+  "guidance_tip": "Position camera clearly over an illuminated surgical field to begin live surgical scoring and alerts."
 }`;
 
   if (imageBase64) {
@@ -473,33 +515,21 @@ Return strictly valid JSON:
       const visionRaw = await callGroqVisionDirect(visionPrompt, imageBase64, 850);
       const parsedVision = parseJsonSafe(visionRaw);
       if (parsedVision) {
-        return normalizeLiveFrameResult(parsedVision, profile, ts, elapsedSeconds, opticalHazards, 'Groq Qwen3.8 Vision');
+        return normalizeLiveFrameResult(parsedVision, profile, ts, elapsedSeconds, frameMetrics, 'Groq Qwen3.8 Vision');
       }
     } catch (visionErr) {
-      console.warn('[Live AI] Direct vision fallback to telemetry LLM:', visionErr.message);
+      console.warn('[Live AI] Vision model call failed:', visionErr.message);
     }
   }
 
-  // 3. Fast Telemetry-Driven Groq Text Inference
-  try {
-    const textRaw = await callGroqDirect(
-      [
-        { role: 'system', content: 'You are MediCast AI Live Intraoperative Surgical Monitor. Output strictly valid JSON.' },
-        { role: 'user', content: visionPrompt }
-      ],
-      true,
-      800
-    );
-    const parsedText = parseJsonSafe(textRaw);
-    if (parsedText) {
-      return normalizeLiveFrameResult(parsedText, profile, ts, elapsedSeconds, opticalHazards, 'Groq Real-Time Telemetry');
-    }
-  } catch (textErr) {
-    console.warn('[Live AI] Text fallback to deterministic clinical engine:', textErr.message);
-  }
-
-  // 4. Deterministic Real-Time Clinical & Optical Synthesis
-  return buildDeterministicLiveFrame(profile, procedureType, ts, elapsedSeconds, frameIndex, opticalHazards, frameMetrics);
+  // Never fall back to a blind text-only LLM that cannot see the camera image!
+  return buildNonSurgicalFrameResult({
+    ts,
+    elapsedSeconds,
+    reason: 'Awaiting clear visual verification of a surgical operative field before generating scores or alerts.',
+    feedQuality: 'unverified',
+    engineName: 'Vision Verification Gate'
+  });
 }
 
 function parseJsonSafe(raw) {
@@ -519,16 +549,54 @@ function parseJsonSafe(raw) {
   }
 }
 
-function normalizeLiveFrameResult(raw, profile, ts, elapsedSeconds, opticalHazards, engineName) {
+function buildNonSurgicalFrameResult({ ts, elapsedSeconds, reason, feedQuality = 'non_surgical', engineName = 'Vision Gate' }) {
+  return {
+    timestamp: ts,
+    elapsedSeconds,
+    is_surgical_scene: false,
+    feed_quality: feedQuality,
+    engine: engineName,
+    phase: feedQuality === 'dark' || feedQuality === 'blurry'
+      ? 'Camera Feed Unclear / Low Light'
+      : 'No Surgery Detected in View',
+    scene_observed: reason,
+    risk_level: 'standby',
+    safety_score: null,
+    efficiency_score: null,
+    skill_score: null,
+    anatomy_identified: [],
+    instruments_detected: [],
+    alerts: [],
+    guidance_tip: 'Ensure the camera is focused and aimed at an illuminated surgical procedure to activate real-time scoring and hazard warnings.'
+  };
+}
+
+function normalizeLiveFrameResult(raw, profile, ts, elapsedSeconds, frameMetrics, engineName) {
+  const isSurgical = Boolean(raw.is_surgical_scene);
+  const feedQuality = (raw.feed_quality || 'clear').toLowerCase();
+
+  // If Vision AI says no surgery is visible (or feed is blurry/dark), NEVER fabricate scores, landmarks, or surgical alerts!
+  if (!isSurgical || feedQuality === 'dark' || feedQuality === 'blurry') {
+    return buildNonSurgicalFrameResult({
+      ts,
+      elapsedSeconds,
+      reason: raw.scene_observed || 'No active surgical field detected in the current camera frame.',
+      feedQuality: !isSurgical ? 'non_surgical' : feedQuality,
+      engineName
+    });
+  }
+
+  const opticalHazards = evaluateImmediateOpticalHazards(frameMetrics, elapsedSeconds, true);
   const phaseIdx = Math.min(profile.phases.length - 1, Math.floor(elapsedSeconds / 45));
+
   const aiAlerts = (Array.isArray(raw.alerts) ? raw.alerts : []).map((a, idx) => ({
     id: `ai_${Date.now()}_${idx}`,
     severity: ['low', 'moderate', 'high', 'critical'].includes((a.severity || '').toLowerCase())
       ? a.severity.toLowerCase()
       : 'low',
     title: a.title || 'Intraoperative Vision Telemetry',
-    description: a.description || 'Continuous anatomical plane monitoring active.',
-    recommendation: a.recommendation || 'Maintain clear visualization and gentle counter-traction.',
+    description: a.description || 'Active surgical plane monitoring.',
+    recommendation: a.recommendation || 'Maintain clear visualization and gentle tissue handling.',
     timestamp: a.timestamp || ts,
     source: engineName
   }));
@@ -540,37 +608,38 @@ function normalizeLiveFrameResult(raw, profile, ts, elapsedSeconds, opticalHazar
       ? 'high'
       : combinedAlerts.some(a => a.severity === 'moderate')
         ? 'moderate'
-        : (raw.risk_level || 'low').toLowerCase();
+        : ['low', 'moderate', 'high', 'critical'].includes((raw.risk_level || '').toLowerCase())
+          ? raw.risk_level.toLowerCase()
+          : 'low';
 
-  const clamp = (v, def) => {
+  const parseScoreOrNull = (v, fallback) => {
+    if (v === null || v === undefined) return fallback;
     const n = Number(v);
-    if (isNaN(n)) return def;
+    if (isNaN(n)) return fallback;
     const scaled = n > 0 && n <= 1 ? n * 100 : n > 1 && n <= 10 ? n * 10 : n;
     return Math.max(35, Math.min(100, Math.round(scaled)));
   };
 
-  let safetyScore = clamp(raw.safety_score, 94);
+  let safetyScore = parseScoreOrNull(raw.safety_score, 92);
   if (highestSeverity === 'critical') safetyScore = Math.min(safetyScore, 68);
   else if (highestSeverity === 'high') safetyScore = Math.min(safetyScore, 79);
 
   return {
     timestamp: ts,
     elapsedSeconds,
+    is_surgical_scene: true,
+    feed_quality: 'clear',
     engine: engineName,
     phase: raw.phase || profile.phases[phaseIdx],
-    scene_observed: raw.scene_observed || `Monitoring live optical feed for ${profile.phases[phaseIdx]}.`,
+    scene_observed: raw.scene_observed || `Surgical field confirmed — monitoring ${raw.phase || profile.phases[phaseIdx]}.`,
     risk_level: highestSeverity,
     safety_score: safetyScore,
-    efficiency_score: clamp(raw.efficiency_score, 90),
-    skill_score: clamp(raw.skill_score, 92),
-    anatomy_identified: Array.isArray(raw.anatomy_identified) && raw.anatomy_identified.length > 0
-      ? raw.anatomy_identified
-      : profile.landmarks.slice(0, 3),
-    instruments_detected: Array.isArray(raw.instruments_detected) && raw.instruments_detected.length > 0
-      ? raw.instruments_detected
-      : profile.instruments.slice(0, 2),
+    efficiency_score: parseScoreOrNull(raw.efficiency_score, 90),
+    skill_score: parseScoreOrNull(raw.skill_score, 91),
+    anatomy_identified: Array.isArray(raw.anatomy_identified) ? raw.anatomy_identified : [],
+    instruments_detected: Array.isArray(raw.instruments_detected) ? raw.instruments_detected : [],
     alerts: combinedAlerts,
-    guidance_tip: raw.guidance_tip || (Array.isArray(raw.education_tips) ? raw.education_tips[0] : '') || 'Maintain optimal optical centering and verify avascular connective tissue planes before division.'
+    guidance_tip: raw.guidance_tip || (Array.isArray(raw.education_tips) ? raw.education_tips[0] : '') || 'Maintain optimal optical centering and verify avascular connective tissue planes.'
   };
 }
 
@@ -611,7 +680,9 @@ function buildDeterministicLiveFrame(profile, procedureType, ts, elapsedSeconds,
   return {
     timestamp: ts,
     elapsedSeconds,
-    engine: 'MediCast Real-Time Edge Vision',
+    is_surgical_scene: true,
+    feed_quality: 'clear',
+    engine: 'MediCast Virtual Scope Vision',
     phase: currentPhase,
     scene_observed: `Live camera stream active for ${procedureType} — tracking ${currentPhase}.`,
     risk_level: riskLevel,

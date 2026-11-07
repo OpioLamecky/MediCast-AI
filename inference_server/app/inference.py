@@ -229,30 +229,65 @@ class InferenceEngine:
         ts_str = f"{mins:02d}:{secs:02d}"
         metrics_ctx = json.dumps(frame_metrics) if frame_metrics else "none"
 
-        prompt = f"""You are MediCast AI Live Surgical Vision Monitor watching a real-time surgical camera stream.
-Procedure: {procedure_type}
+        # Pre-check optical clarity before invoking Vision LLM
+        if isinstance(frame_metrics, dict):
+            brightness = frame_metrics.get("brightness", 50)
+            contrast = frame_metrics.get("contrastScore", 40)
+            if brightness < 14 or contrast < 11:
+                reason = (
+                    f"Camera feed is dark or obstructed ({brightness}% brightness)."
+                    if brightness < 14
+                    else f"Camera feed is blurry or lacks visual detail ({contrast}% contrast)."
+                )
+                return AnalysisResult(
+                    is_surgical_scene=False,
+                    feed_quality="dark" if brightness < 14 else "blurry",
+                    scene_observed=reason,
+                    phase="Camera Feed Unclear / Low Light",
+                    risk_level="standby",
+                    safety_score=None,
+                    efficiency_score=None,
+                    skill_score=None,
+                    anatomy_identified=[],
+                    instruments_detected=[],
+                    safety_concerns=[],
+                    alerts=[],
+                    education_tips=[],
+                    guidance_tip="Ensure camera is focused and aimed at an illuminated surgical procedure before scoring.",
+                    timestamp=timestamp,
+                )
+
+        prompt = f"""You are MediCast AI Intraoperative Vision Verifier & Surgical Monitor.
+Target Procedure: {procedure_type}
 Elapsed Time: {ts_str}
 Optical Frame Telemetry: {metrics_ctx}
 
-Inspect the live camera frame carefully. Identify the current surgical phase, visible anatomical landmarks or connective tissue planes, surgical instruments (or hands/tools/camera view state if in test/simulation), and any immediate intraoperative safety warnings or alerts (e.g., bleeding/oozing chromaticity, vital structure proximity, lens fogging/occlusion, rapid erratic motion, or safe corridor confirmation).
+STRICT ZERO-HALLUCINATION RULES:
+1. Inspect what is LITERALLY visible in this image frame.
+2. Set "is_surgical_scene": true ONLY if the image genuinely shows a real surgical procedure, open incision, endoscopic/laparoscopic/arthroscopic/microscopic operative view, or surgical tissue model, AND the view is clear enough to evaluate.
+3. If the image shows a normal room, person, face, ceiling, wall, desk, dark/blurry frame, or anything NOT a surgical procedure:
+   - Set "is_surgical_scene": false
+   - Set "safety_score": null, "efficiency_score": null, "skill_score": null
+   - Set "risk_level": "standby"
+   - Set "phase": "No Surgery Detected in Camera View"
+   - Set "anatomy_identified": [] and "instruments_detected": []
+   - Set "alerts": [] (NEVER fabricate surgical portals, cannulas, bleeding, or scores!)
+   - Set "scene_observed" to a brief factual description of what is actually visible.
 
-Return ONLY valid JSON matching this exact schema:
+Return ONLY valid JSON matching this schema:
 {{
-  "phase": "Current surgical phase name",
-  "risk_level": "low" | "moderate" | "high" | "critical",
-  "safety_score": 94,
-  "anatomy_identified": ["Structure or plane 1", "Structure 2"],
-  "instruments_detected": ["Instrument 1"],
-  "alerts": [
-    {{
-      "severity": "low" | "moderate" | "high" | "critical",
-      "title": "Short alert title",
-      "description": "Specific real-time warning or observation",
-      "recommendation": "Immediate actionable surgical mitigation",
-      "timestamp": "{ts_str}"
-    }}
-  ],
-  "guidance_tip": "Concise real-time cognitive surgical coaching note"
+  "is_surgical_scene": false,
+  "feed_quality": "clear",
+  "scene_observed": "Factual description of camera frame",
+  "phase": "No Surgery Detected in Camera View",
+  "risk_level": "standby",
+  "safety_score": null,
+  "efficiency_score": null,
+  "skill_score": null,
+  "anatomy_identified": [],
+  "instruments_detected": [],
+  "alerts": [],
+  "guidance_tip": "Position camera clearly over an illuminated surgical field to activate scoring and alerts."
 }}"""
 
         raw = await self._call_llm_vision(prompt, image_b64)
@@ -268,13 +303,27 @@ Return ONLY valid JSON matching this exact schema:
                 except Exception:
                     data = {}
 
-        if not data:
-            # Fallback to fast text synthesis if vision providers are unavailable
-            fallback_raw = await self._call_llm_text(prompt)
-            try:
-                data = json.loads(fallback_raw)
-            except Exception:
-                data = {}
+        is_surgical = bool(data.get("is_surgical_scene", False))
+        feed_quality = str(data.get("feed_quality", "clear")).lower()
+
+        if not data or not is_surgical or feed_quality in ("dark", "blurry"):
+            return AnalysisResult(
+                is_surgical_scene=False,
+                feed_quality="non_surgical" if not is_surgical else feed_quality,
+                scene_observed=data.get("scene_observed") or "No active surgical procedure detected in camera view.",
+                phase="No Surgery Detected in View",
+                risk_level="standby",
+                safety_score=None,
+                efficiency_score=None,
+                skill_score=None,
+                anatomy_identified=[],
+                instruments_detected=[],
+                safety_concerns=[],
+                alerts=[],
+                education_tips=[],
+                guidance_tip="Position camera clearly over an illuminated surgical field to activate real-time scoring and warnings.",
+                timestamp=timestamp,
+            )
 
         alerts = data.get("alerts", [])
         safety_concerns = [
@@ -283,15 +332,23 @@ Return ONLY valid JSON matching this exact schema:
         ]
         guidance_tip = data.get("guidance_tip", "")
 
-        try:
-            safety_score = max(0, min(100, int(round(float(data.get("safety_score", 93))))))
-        except Exception:
-            safety_score = 93
+        def _parse_opt_score(val, default_val):
+            if val is None:
+                return default_val
+            try:
+                return max(0, min(100, int(round(float(val)))))
+            except Exception:
+                return default_val
 
         return AnalysisResult(
+            is_surgical_scene=True,
+            feed_quality="clear",
+            scene_observed=data.get("scene_observed", "Surgical field confirmed."),
             phase=data.get("phase", "Active Intraoperative Monitoring"),
             risk_level=data.get("risk_level", "low"),
-            safety_score=safety_score,
+            safety_score=_parse_opt_score(data.get("safety_score"), 92),
+            efficiency_score=_parse_opt_score(data.get("efficiency_score"), 90),
+            skill_score=_parse_opt_score(data.get("skill_score"), 91),
             anatomy_identified=data.get("anatomy_identified", []),
             instruments_detected=data.get("instruments_detected", []),
             safety_concerns=safety_concerns,

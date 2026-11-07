@@ -21,9 +21,14 @@ class LiveAlert(BaseModel):
     timestamp: str = ""
 
 class AnalysisResult(BaseModel):
+    is_surgical_scene: bool = False
+    feed_quality: str = "clear"
+    scene_observed: str = ""
     phase: str = ""
-    risk_level: str = "low"
-    safety_score: int = 94
+    risk_level: str = "standby"
+    safety_score: Optional[int] = None
+    efficiency_score: Optional[int] = None
+    skill_score: Optional[int] = None
     anatomy_identified: List[str] = []
     instruments_detected: List[str] = []
     safety_concerns: List[str] = []

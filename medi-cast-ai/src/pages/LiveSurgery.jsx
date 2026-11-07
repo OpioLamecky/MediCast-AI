@@ -141,8 +141,32 @@ const severityStyles = {
     card: 'bg-teal-50/80 border-teal-200 text-teal-950',
     hud: 'bg-slate-900/85 border-teal-400/50 text-white',
     dot: 'bg-teal-500'
+  },
+  standby: {
+    badge: 'bg-slate-600 text-white',
+    card: 'bg-slate-50/90 border-slate-200 text-slate-800',
+    hud: 'bg-slate-900/85 border-slate-500/50 text-white',
+    dot: 'bg-slate-400'
   }
 };
+
+function createStandbyTelemetry(procName) {
+  return {
+    is_surgical_scene: false,
+    feed_quality: 'standby',
+    phase: 'Standby — Awaiting Surgical Field',
+    scene_observed:
+      'Camera preview active. Position camera clearly over an illuminated surgical procedure and click "Start Recording Live Surgery" (or "Scan Frame Now") to begin real-time AI analysis.',
+    risk_level: 'standby',
+    safety_score: null,
+    efficiency_score: null,
+    skill_score: null,
+    anatomy_identified: [],
+    instruments_detected: [],
+    guidance_tip: `Selected procedure: ${procName}. Clinical scores and intraoperative hazard alerts activate only when a clear surgical field is visually confirmed.`,
+    engine: 'Vision Verification Gate'
+  };
+}
 
 export default function LiveSurgery() {
   const navigate = useNavigate();
@@ -191,6 +215,7 @@ export default function LiveSurgery() {
   const [recordedBlobUrl, setRecordedBlobUrl] = useState(null);
   const [recordedFile, setRecordedFile] = useState(null);
   const [completedSession, setCompletedSession] = useState(null); // { videoRecord, analysisRecord }
+  const [unverifiedSessionNotice, setUnverifiedSessionNotice] = useState('');
 
   // ── Pre-Recorded Mode State ──
   const [savedVideos, setSavedVideos] = useState([]);
@@ -202,26 +227,12 @@ export default function LiveSurgery() {
 
   // ── Real-Time AI Telemetry & Alerts State ──
   const [opticalMetrics, setOpticalMetrics] = useState({
-    brightness: 62,
-    contrastScore: 54,
-    rednessRatio: 10,
-    motionScore: 6
+    brightness: 0,
+    contrastScore: 0,
+    rednessRatio: 0,
+    motionScore: 0
   });
-  const [liveTelemetry, setLiveTelemetry] = useState(() => {
-    const prof = getProcedureProfile(initialProc);
-    return {
-      phase: prof.phases[0],
-      scene_observed: 'Initializing surgical vision stream...',
-      risk_level: 'low',
-      safety_score: 95,
-      efficiency_score: 91,
-      skill_score: 93,
-      anatomy_identified: prof.landmarks.slice(0, 3),
-      instruments_detected: prof.instruments.slice(0, 2),
-      guidance_tip: 'Center surgical field and verify optical clarity prior to incision.',
-      engine: 'MediCast Vision Ready'
-    };
-  });
+  const [liveTelemetry, setLiveTelemetry] = useState(() => createStandbyTelemetry(initialProc));
   const [alertsFeed, setAlertsFeed] = useState([]);
   const [activeBannerAlert, setActiveBannerAlert] = useState(null);
 
@@ -239,9 +250,11 @@ export default function LiveSurgery() {
   const lastAudioAlertTimeRef = useRef(0);
   const elapsedRef = useRef(0);
   const virtualAnimRef = useRef(null);
+  const isConfirmedSurgicalRef = useRef(false);
 
   // Accumulators for final post-operative report synthesis
   const sessionLogRef = useRef({
+    surgicalFramesCount: 0,
     phasesObserved: [],
     instrumentsSet: new Set(),
     anatomySet: new Set(),
@@ -255,7 +268,7 @@ export default function LiveSurgery() {
     elapsedRef.current = elapsedSeconds;
   }, [elapsedSeconds]);
 
-  // Update procedure department & initial telemetry when procedure changes
+  // Update procedure department & standby telemetry when procedure changes
   const handleProcedureChange = (newProc) => {
     setProcedureType(newProc);
     const prof = getProcedureProfile(newProc);
@@ -263,13 +276,14 @@ export default function LiveSurgery() {
       ...prev,
       department: prof.department || prev.department
     }));
-    setLiveTelemetry(prev => ({
-      ...prev,
-      phase: prof.phases[0],
-      anatomy_identified: prof.landmarks.slice(0, 3),
-      instruments_detected: prof.instruments.slice(0, 2),
-      guidance_tip: `Configured for ${newProc}: Verify ${prof.landmarks[0]} exposure and safe dissection planes.`
-    }));
+    setLiveTelemetry(prev =>
+      prev.is_surgical_scene
+        ? {
+            ...prev,
+            guidance_tip: `Configured for ${newProc}: Verify ${prof.landmarks[0]} exposure and safe dissection planes.`
+          }
+        : createStandbyTelemetry(newProc)
+    );
   };
 
   // ── Stop PC Camera Cleanly ──
@@ -613,11 +627,11 @@ export default function LiveSurgery() {
 
   // ── Fast Optical Telemetry Loop (Every 1.5s) ──
   useEffect(() => {
-    const isStreamActive =
-      (mode === 'live' && cameraStatus === 'ready' && aiWatchActive && !isPaused) ||
-      (mode === 'prerecorded' && isPrerecordedPlaying && aiWatchActive);
+    const canSampleFrames =
+      (mode === 'live' && cameraStatus === 'ready') ||
+      (mode === 'prerecorded' && isPrerecordedPlaying);
 
-    if (!isStreamActive) return;
+    if (!canSampleFrames) return;
 
     const interval = setInterval(() => {
       const videoEl = mode === 'live' ? liveVideoRef.current : prerecordedVideoRef.current;
@@ -633,15 +647,27 @@ export default function LiveSurgery() {
           motionScore: metrics.motionScore
         });
 
-        const immediateHazards = evaluateImmediateOpticalHazards(metrics, elapsedRef.current);
-        if (immediateHazards.length > 0) {
-          registerAlerts(immediateHazards);
+        // Only emit intraoperative optical hazard alerts during an active recording/playback AND when a surgical scene is visually confirmed!
+        const isActiveMonitoring =
+          aiWatchActive &&
+          ((mode === 'live' && isRecording && !isPaused) || (mode === 'prerecorded' && isPrerecordedPlaying));
+
+        if (isActiveMonitoring) {
+          const confirmedSurgical = Boolean(isConfirmedSurgicalRef.current || (mode === 'live' && isVirtualScope));
+          const immediateHazards = evaluateImmediateOpticalHazards(
+            metrics,
+            elapsedRef.current,
+            confirmedSurgical
+          );
+          if (immediateHazards.length > 0) {
+            registerAlerts(immediateHazards);
+          }
         }
       }
     }, 1500);
 
     return () => clearInterval(interval);
-  }, [mode, cameraStatus, aiWatchActive, isPaused, isPrerecordedPlaying, registerAlerts]);
+  }, [mode, cameraStatus, aiWatchActive, isRecording, isPaused, isVirtualScope, isPrerecordedPlaying, registerAlerts]);
 
   // ── Deep AI Frame Vision Analysis Function ──
   const runSingleFrameAnalysis = useCallback(async () => {
@@ -668,6 +694,7 @@ export default function LiveSurgery() {
         frameIndex: frameCounterRef.current,
         surgeonName: caseMeta.surgeon_name || 'Attending Surgeon',
         sessionId: sessionIdRef.current,
+        isVirtualScope: mode === 'live' && isVirtualScope,
         frameMetrics: metrics
           ? {
               brightness: metrics.brightness,
@@ -678,34 +705,40 @@ export default function LiveSurgery() {
           : null
       });
 
+      isConfirmedSurgicalRef.current = Boolean(result.is_surgical_scene);
       setLiveTelemetry(result);
 
-      // Accumulate into session log
-      const log = sessionLogRef.current;
-      log.safetyScores.push(result.safety_score);
-      log.efficiencyScores.push(result.efficiency_score);
-      log.skillScores.push(result.skill_score);
-      (result.instruments_detected || []).forEach(i => log.instrumentsSet.add(i));
-      (result.anatomy_identified || []).forEach(a => log.anatomySet.add(a));
+      // Only accumulate clinical scores, phases, anatomy & surgical alerts when a genuine surgical scene is visually confirmed!
+      if (result.is_surgical_scene && result.safety_score != null) {
+        const log = sessionLogRef.current;
+        log.surgicalFramesCount = (log.surgicalFramesCount || 0) + 1;
+        log.safetyScores.push(result.safety_score);
+        if (result.efficiency_score != null) log.efficiencyScores.push(result.efficiency_score);
+        if (result.skill_score != null) log.skillScores.push(result.skill_score);
+        (result.instruments_detected || []).forEach(i => log.instrumentsSet.add(i));
+        (result.anatomy_identified || []).forEach(a => log.anatomySet.add(a));
 
-      if (result.phase) {
-        const lastPhase = log.phasesObserved[log.phasesObserved.length - 1];
-        if (!lastPhase || lastPhase.name !== result.phase) {
-          if (lastPhase) lastPhase.end_time = result.timestamp;
-          log.phasesObserved.push({
-            name: result.phase,
-            start_time: result.timestamp,
-            end_time: result.timestamp,
-            score: result.safety_score,
-            notes: result.guidance_tip || result.scene_observed
-          });
-        } else {
-          lastPhase.end_time = result.timestamp;
+        if (result.phase) {
+          const lastPhase = log.phasesObserved[log.phasesObserved.length - 1];
+          if (!lastPhase || lastPhase.name !== result.phase) {
+            if (lastPhase) lastPhase.end_time = result.timestamp;
+            log.phasesObserved.push({
+              name: result.phase,
+              start_time: result.timestamp,
+              end_time: result.timestamp,
+              score: result.safety_score,
+              notes: result.guidance_tip || result.scene_observed
+            });
+          } else {
+            lastPhase.end_time = result.timestamp;
+          }
         }
-      }
 
-      if (Array.isArray(result.alerts) && result.alerts.length > 0) {
-        registerAlerts(result.alerts);
+        if (Array.isArray(result.alerts) && result.alerts.length > 0) {
+          registerAlerts(result.alerts);
+        }
+      } else {
+        setActiveBannerAlert(null);
       }
     } catch (err) {
       console.warn('[LiveSurgery] Frame scan error:', err);
@@ -713,20 +746,20 @@ export default function LiveSurgery() {
       isAnalyzingRef.current = false;
       setIsScanningFrame(false);
     }
-  }, [mode, procedureType, caseMeta.surgeon_name, activePrerecordedVideo, registerAlerts]);
+  }, [mode, procedureType, isVirtualScope, caseMeta.surgeon_name, activePrerecordedVideo, registerAlerts]);
 
-  // ── Periodic Deep AI Frame Analysis Loop (Every 8s while active) ──
+  // ── Periodic Deep AI Frame Analysis Loop (Every 8s ONLY during active recording or video playback) ──
   useEffect(() => {
     const shouldAnalyze =
-      (mode === 'live' && cameraStatus === 'ready' && aiWatchActive && !isPaused) ||
+      (mode === 'live' && cameraStatus === 'ready' && isRecording && !isPaused && aiWatchActive) ||
       (mode === 'prerecorded' && isPrerecordedPlaying && aiWatchActive);
 
     if (!shouldAnalyze) return;
 
-    // Trigger an initial scan shortly after stream starts
+    // Trigger an initial scan shortly after recording or playback starts
     const initialTimeout = setTimeout(() => {
       runSingleFrameAnalysis();
-    }, 1800);
+    }, 1500);
 
     const interval = setInterval(() => {
       runSingleFrameAnalysis();
@@ -736,7 +769,7 @@ export default function LiveSurgery() {
       clearTimeout(initialTimeout);
       clearInterval(interval);
     };
-  }, [mode, cameraStatus, aiWatchActive, isPaused, isPrerecordedPlaying, runSingleFrameAnalysis]);
+  }, [mode, cameraStatus, isRecording, aiWatchActive, isPaused, isPrerecordedPlaying, runSingleFrameAnalysis]);
 
   // ── Start Live Surgery Recording (PC Camera -> MediaRecorder) ──
   const startLiveRecording = () => {
@@ -753,7 +786,9 @@ export default function LiveSurgery() {
     recordedChunksRef.current = [];
     sessionIdRef.current = `live_${Date.now()}`;
     frameCounterRef.current = 0;
+    isConfirmedSurgicalRef.current = Boolean(isVirtualScope);
     sessionLogRef.current = {
+      surgicalFramesCount: 0,
       phasesObserved: [],
       instrumentsSet: new Set(),
       anatomySet: new Set(),
@@ -765,7 +800,9 @@ export default function LiveSurgery() {
     setRecordedBlobUrl(null);
     setRecordedFile(null);
     setCompletedSession(null);
+    setUnverifiedSessionNotice('');
     setAlertsFeed([]);
+    setActiveBannerAlert(null);
     setElapsedSeconds(0);
     setAiWatchActive(true);
 
@@ -855,6 +892,21 @@ export default function LiveSurgery() {
       if (blobUrl) setRecordedBlobUrl(blobUrl);
       if (videoFile) setRecordedFile(videoFile);
 
+      const log = sessionLogRef.current;
+      const hasVerifiedSurgery = (log.surgicalFramesCount || 0) > 0 || isVirtualScope;
+
+      // Zero-hallucination gate: never fabricate surgical scores or clinical reports if no surgical scene was detected!
+      if (!hasVerifiedSurgery) {
+        setUnverifiedSessionNotice(
+          'Recording stopped. No active surgical procedure or clear operative field was visually detected in the camera stream, so clinical surgical scores and audit reports were not generated.'
+        );
+        toast({
+          title: 'No Surgical Procedure Detected in Stream',
+          description: 'Raw camera clip is available to download locally, without fabricated surgical scores.'
+        });
+        return;
+      }
+
       const durationMins = Math.max(1, Math.round(elapsedSeconds / 60));
       const todayStr = new Date().toISOString().split('T')[0];
 
@@ -895,7 +947,6 @@ export default function LiveSurgery() {
       }
 
       // 2. Compile comprehensive AnalysisResult incorporating all live alerts, phases & telemetry
-      const log = sessionLogRef.current;
       const compiledAnalysis = await compileLiveSessionAnalysis(savedVideo, {
         alerts: log.alerts,
         phasesObserved: log.phasesObserved,
@@ -972,7 +1023,10 @@ export default function LiveSurgery() {
     setActiveBannerAlert(null);
     setElapsedSeconds(0);
     setCompletedSession(null);
+    setUnverifiedSessionNotice('');
+    isConfirmedSurgicalRef.current = false;
     sessionLogRef.current = {
+      surgicalFramesCount: 0,
       phasesObserved: [],
       instrumentsSet: new Set(),
       anatomySet: new Set(),
@@ -1301,6 +1355,47 @@ export default function LiveSurgery() {
         )}
       </div>
 
+      {/* ── Unverified / Non-Surgical Stream Notice Banner ── */}
+      {unverifiedSessionNotice && !completedSession && (
+        <div className="bg-amber-50/90 border border-amber-200 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-amber-950 font-heading">
+                No Surgical Scene Verified — Clinical Scoring Skipped
+              </h3>
+              <p className="text-xs text-amber-900 mt-0.5 leading-relaxed">{unverifiedSessionNotice}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            {recordedBlobUrl && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadRecordedVideo}
+                className="border-amber-300 bg-white text-amber-950 hover:bg-amber-100 text-xs font-semibold"
+              >
+                <Download className="w-3.5 h-3.5 mr-1.5" />
+                Download Raw Camera Clip
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setUnverifiedSessionNotice('')}
+              className="border-stone-200 bg-white text-stone-600 text-xs"
+            >
+              Dismiss
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* ── Completed Session Banner (Download Recorded Video & Word Audit Report) ── */}
       {completedSession && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
@@ -1525,10 +1620,15 @@ export default function LiveSurgery() {
                       </div>
                     )}
                     <div className="px-2.5 py-1 rounded-full bg-slate-900/85 backdrop-blur-md text-white border border-white/15 text-[11px] font-semibold">
-                      Safety: <span className="text-emerald-400">{liveTelemetry.safety_score}%</span>
+                      Safety:{' '}
+                      {liveTelemetry.safety_score != null ? (
+                        <span className="text-emerald-400">{liveTelemetry.safety_score}%</span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
                     </div>
                     <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${currentRiskStyle.badge}`}>
-                      {liveTelemetry.risk_level} Risk
+                      {liveTelemetry.is_surgical_scene ? `${liveTelemetry.risk_level} Risk` : 'No Surgery in View'}
                     </div>
                   </div>
                 </div>
@@ -1543,7 +1643,7 @@ export default function LiveSurgery() {
 
                 {/* Bottom HUD Alert Overlay + Optical Telemetry Strip */}
                 <div className="space-y-2">
-                  {activeBannerAlert && (
+                  {activeBannerAlert ? (
                     <div
                       className={`pointer-events-auto rounded-xl border px-3.5 py-2.5 backdrop-blur-md shadow-xl flex items-start justify-between gap-3 ${
                         (severityStyles[activeBannerAlert.severity] || severityStyles.low).hud
@@ -1575,6 +1675,17 @@ export default function LiveSurgery() {
                         <X className="w-4 h-4" />
                       </button>
                     </div>
+                  ) : (
+                    mode === 'live' &&
+                    cameraStatus === 'ready' &&
+                    !isVirtualScope &&
+                    (opticalMetrics.brightness < 14 || opticalMetrics.contrastScore < 11) && (
+                      <div className="rounded-xl border border-slate-600/80 bg-slate-900/90 px-3.5 py-2 backdrop-blur-md text-xs text-slate-200 flex items-center justify-between gap-2">
+                        <span>
+                          <strong className="text-amber-300">Camera Feed Low Light / Unclear:</strong> Check room lighting, webcam shutter, or click browser <strong>Reload</strong> if camera permission was just granted. Surgical scoring stays paused until a clear surgical field is visible.
+                        </span>
+                      </div>
+                    )
                   )}
 
                   {/* Optical Sensor Bar */}
@@ -1781,14 +1892,20 @@ export default function LiveSurgery() {
                 {liveTelemetry.scene_observed}
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {(liveTelemetry.anatomy_identified || []).map((item, idx) => (
-                  <span
-                    key={idx}
-                    className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-teal-50 text-teal-800 border border-teal-200/70"
-                  >
-                    {item}
+                {(liveTelemetry.anatomy_identified || []).length > 0 ? (
+                  (liveTelemetry.anatomy_identified || []).map((item, idx) => (
+                    <span
+                      key={idx}
+                      className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-teal-50 text-teal-800 border border-teal-200/70"
+                    >
+                      {item}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-[11px] text-stone-400 italic">
+                    No surgical anatomy detected in current camera view
                   </span>
-                ))}
+                )}
               </div>
             </div>
 
@@ -1800,20 +1917,28 @@ export default function LiveSurgery() {
                     Instruments & AI Guidance
                   </h3>
                 </div>
-                <span className="text-xs font-bold text-teal-700">Skill {liveTelemetry.skill_score}%</span>
+                <span className="text-xs font-bold text-teal-700">
+                  {liveTelemetry.skill_score != null ? `Skill ${liveTelemetry.skill_score}%` : 'Standby'}
+                </span>
               </div>
               <p className="text-xs text-stone-700 leading-relaxed bg-blue-50/50 rounded-xl p-2.5 border border-blue-100/80">
                 <strong className="text-blue-900">Coaching Tip:</strong> {liveTelemetry.guidance_tip}
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {(liveTelemetry.instruments_detected || []).map((inst, idx) => (
-                  <span
-                    key={idx}
-                    className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200"
-                  >
-                    {inst}
+                {(liveTelemetry.instruments_detected || []).length > 0 ? (
+                  (liveTelemetry.instruments_detected || []).map((inst, idx) => (
+                    <span
+                      key={idx}
+                      className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200"
+                    >
+                      {inst}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-[11px] text-stone-400 italic">
+                    No surgical instruments detected in current camera view
                   </span>
-                ))}
+                )}
               </div>
             </div>
           </div>
@@ -1844,15 +1969,21 @@ export default function LiveSurgery() {
           <div className="grid grid-cols-3 gap-2 my-3 shrink-0">
             <div className="rounded-xl bg-stone-50 border border-stone-200/70 p-2.5 text-center">
               <p className="text-[10px] text-stone-500 uppercase font-semibold">Safety</p>
-              <p className="text-base font-bold text-emerald-700 font-heading">{liveTelemetry.safety_score}%</p>
+              <p className={`text-base font-bold font-heading ${liveTelemetry.safety_score != null ? 'text-emerald-700' : 'text-stone-400'}`}>
+                {liveTelemetry.safety_score != null ? `${liveTelemetry.safety_score}%` : '—'}
+              </p>
             </div>
             <div className="rounded-xl bg-stone-50 border border-stone-200/70 p-2.5 text-center">
               <p className="text-[10px] text-stone-500 uppercase font-semibold">Skill</p>
-              <p className="text-base font-bold text-indigo-700 font-heading">{liveTelemetry.skill_score}%</p>
+              <p className={`text-base font-bold font-heading ${liveTelemetry.skill_score != null ? 'text-indigo-700' : 'text-stone-400'}`}>
+                {liveTelemetry.skill_score != null ? `${liveTelemetry.skill_score}%` : '—'}
+              </p>
             </div>
             <div className="rounded-xl bg-stone-50 border border-stone-200/70 p-2.5 text-center">
               <p className="text-[10px] text-stone-500 uppercase font-semibold">Efficiency</p>
-              <p className="text-base font-bold text-teal-700 font-heading">{liveTelemetry.efficiency_score}%</p>
+              <p className={`text-base font-bold font-heading ${liveTelemetry.efficiency_score != null ? 'text-teal-700' : 'text-stone-400'}`}>
+                {liveTelemetry.efficiency_score != null ? `${liveTelemetry.efficiency_score}%` : '—'}
+              </p>
             </div>
           </div>
 
@@ -1862,10 +1993,16 @@ export default function LiveSurgery() {
               <div className="h-full flex flex-col items-center justify-center text-center py-10 px-4">
                 <ShieldCheck className="w-9 h-9 text-teal-500/70 mb-2" />
                 <p className="text-xs font-semibold text-stone-700">
-                  Monitoring Intraoperative Safety Corridors
+                  {mode === 'live' && !isRecording
+                    ? 'Camera Standby — Awaiting Live Surgery Start'
+                    : liveTelemetry.is_surgical_scene
+                      ? 'Monitoring Intraoperative Safety Corridors'
+                      : 'Awaiting Clear Surgical View'}
                 </p>
                 <p className="text-[11px] text-stone-400 mt-1 leading-relaxed">
-                  Real-time warnings for bleeding chromaticity, vital structure proximity, lens fogging, and motion spikes appear here automatically.
+                  {mode === 'live' && !isRecording
+                    ? 'Scores and surgical hazard alerts remain at "—" during camera preview until you start recording over a verified surgical field.'
+                    : 'Real-time warnings for bleeding chromaticity, vital structure proximity, lens fogging, and motion spikes activate only when an illuminated surgical scene is detected.'}
                 </p>
               </div>
             ) : (
