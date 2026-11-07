@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import {
   Video,
+  Radio,
   Brain,
   AlertTriangle,
   TrendingUp,
@@ -231,10 +232,13 @@ export default function Dashboard() {
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-stone-900 font-heading">
                 Surgical Command & Vision Intelligence
               </h1>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-teal-50 text-teal-800 border border-teal-200/80 shadow-2xs">
-                <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse" />
+              <Link
+                to="/live"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200/80 shadow-2xs transition-colors"
+              >
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                 Live Vision Stream
-              </span>
+              </Link>
             </div>
             <p className="text-xs sm:text-sm text-stone-600 mt-1">
               Augmented surgical vision, real-time connective tissue plane recognition & cognitive risk telemetry
@@ -253,10 +257,17 @@ export default function Dashboard() {
               />
             </div>
 
+            <Link to="/live" className="shrink-0">
+              <Button className="bg-red-600 hover:bg-red-700 text-white text-xs gap-1.5 shadow-sm rounded-xl">
+                <Radio className="w-3.5 h-3.5" />
+                Live Surgery
+              </Button>
+            </Link>
+
             <Link to="/upload" className="shrink-0">
               <Button className="bg-teal-600 hover:bg-teal-700 text-white text-xs gap-1.5 shadow-sm rounded-xl">
                 <Plus className="w-3.5 h-3.5" />
-                Upload Surgery
+                Upload Video
               </Button>
             </Link>
 
@@ -509,11 +520,17 @@ export default function Dashboard() {
                   ? 'No procedures match your current search query.'
                   : 'Get started by uploading your first laparoscopic or robotic video to generate real-time AI anatomical and tissue plane analysis.'}
               </p>
-              <div className="mt-4 flex items-center justify-center gap-2">
+              <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
+                <Link to="/live">
+                  <Button className="bg-red-600 hover:bg-red-700 text-white text-xs gap-1.5 rounded-xl shadow-xs">
+                    <Radio className="w-3.5 h-3.5" />
+                    Start Live Surgery (PC Camera)
+                  </Button>
+                </Link>
                 <Link to="/upload">
                   <Button className="bg-teal-600 hover:bg-teal-700 text-white text-xs gap-1.5 rounded-xl shadow-xs">
                     <Plus className="w-3.5 h-3.5" />
-                    Upload Surgical Video
+                    Upload Pre-Recorded Video
                   </Button>
                 </Link>
               </div>

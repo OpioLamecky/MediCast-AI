@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-import { Brain, Search, Trash2, FileText, Download } from 'lucide-react';
+import { Brain, Search, Trash2, FileText, Download, Radio, Upload } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { generateWordReport } from '@/utils/reportGenerator';
@@ -89,10 +90,24 @@ export default function Analyses() {
 
   return (
     <div className="p-6 md:p-8 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 font-heading">All Analyses</h1>
           <p className="text-sm text-slate-500 mt-1">{videos.length} surgeries recorded</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link to="/live">
+            <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white text-xs gap-1.5">
+              <Radio className="w-3.5 h-3.5" />
+              Live Surgery
+            </Button>
+          </Link>
+          <Link to="/upload">
+            <Button size="sm" variant="outline" className="text-xs gap-1.5 border-slate-200">
+              <Upload className="w-3.5 h-3.5" />
+              Pre-Recorded Upload
+            </Button>
+          </Link>
         </div>
       </div>
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   LayoutDashboard,
+  Radio,
   Upload,
   Brain,
   MessageSquare,
@@ -14,6 +15,7 @@ import { getSavedConversations, saveConversations, createNewChat } from '@/lib/c
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/live', label: 'Live Surgery', icon: Radio, isLive: true },
   { path: '/upload', label: 'Upload', icon: Upload },
   { path: '/analyses', label: 'Analyses', icon: Brain },
   { path: '/compare', label: 'Compare', icon: GitCompare },
@@ -91,14 +93,22 @@ export default function AppLayout() {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                   isActive
                     ? 'bg-teal-50 text-teal-700'
                     : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                 }`}
               >
-                <item.icon className={`w-4.5 h-4.5 ${isActive ? 'text-teal-600' : ''}`} />
-                {item.label}
+                <span className="flex items-center gap-3">
+                  <item.icon className={`w-4.5 h-4.5 ${isActive ? (item.isLive ? 'text-red-600' : 'text-teal-600') : (item.isLive ? 'text-red-500' : '')}`} />
+                  {item.label}
+                </span>
+                {item.isLive && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-red-50 text-red-600 border border-red-200/80">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                    OR
+                  </span>
+                )}
               </Link>
             );
           })}

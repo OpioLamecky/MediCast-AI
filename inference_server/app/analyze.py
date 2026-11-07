@@ -1,6 +1,6 @@
 import uuid
 import logging
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, WebSocket, WebSocketDisconnect
 
 from .models import (
     SessionCreate, 
@@ -38,8 +38,13 @@ async def create_new_session(request: SessionCreate, background_tasks: Backgroun
 @router.post("/analyze-frame", response_model=FrameAnalysisResponse)
 async def analyze_frame(request: FrameAnalysisRequest):
     try:
-        # Run inference using the InferenceEngine
-        analysis_result = await engine.analyze_frame_parallel(request.imageBase64)
+        # Run live surgical vision inference using procedure & optical context
+        analysis_result = await engine.analyze_live_frame(
+            image_b64=request.imageBase64,
+            procedure_type=request.procedureType or "Laparoscopic Cholecystectomy",
+            timestamp=request.timestamp,
+            frame_metrics=request.frameMetrics,
+        )
         analysis_result.timestamp = request.timestamp
         
         # Get Telemetry
@@ -53,15 +58,55 @@ async def analyze_frame(request: FrameAnalysisRequest):
         )
         
         # Save to DB
-        await insert_frame_analysis(request.sessionId, request.timestamp, analysis_result.dict())
+        await insert_frame_analysis(request.sessionId, request.timestamp, analysis_result.model_dump() if hasattr(analysis_result, 'model_dump') else analysis_result.dict())
         
         # Publish to WebSockets
-        await publish_analysis(request.sessionId, response.dict())
+        await publish_analysis(request.sessionId, response.model_dump() if hasattr(response, 'model_dump') else response.dict())
         
         return response
     except Exception as e:
         logger.error(f"Error analyzing frame: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.websocket("/ws/live-surgery/{session_id}")
+async def live_surgery_websocket(websocket: WebSocket, session_id: str):
+    await websocket.accept()
+    logger.info(f"Live surgery WebSocket connected: {session_id}")
+    try:
+        while True:
+            payload = await websocket.receive_json()
+            image_b64 = payload.get("imageBase64", "")
+            timestamp = float(payload.get("timestamp", 0.0))
+            procedure_type = payload.get("procedureType", "Laparoscopic Cholecystectomy")
+            frame_metrics = payload.get("frameMetrics")
+
+            if not image_b64:
+                await websocket.send_json({"error": "Missing imageBase64"})
+                continue
+
+            analysis_result = await engine.analyze_live_frame(
+                image_b64=image_b64,
+                procedure_type=procedure_type,
+                timestamp=timestamp,
+                frame_metrics=frame_metrics,
+            )
+            gpu_metrics = get_gpu_metrics()
+            response = FrameAnalysisResponse(
+                timestamp=timestamp,
+                analysis=analysis_result,
+                gpu_metrics=gpu_metrics,
+            )
+            resp_dict = response.model_dump() if hasattr(response, 'model_dump') else response.dict()
+            await insert_frame_analysis(session_id, timestamp, resp_dict.get("analysis", {}))
+            await websocket.send_json(resp_dict)
+    except WebSocketDisconnect:
+        logger.info(f"Live surgery WebSocket disconnected: {session_id}")
+    except Exception as e:
+        logger.error(f"Live surgery WebSocket error ({session_id}): {e}")
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 @router.post("/report", response_model=ClinicalReportResponse)
 async def generate_report(request: ClinicalReportRequest):

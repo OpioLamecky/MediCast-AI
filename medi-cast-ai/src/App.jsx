@@ -8,6 +8,7 @@ import ScrollToTop from './components/ScrollToTop';
 // App pages
 import AppLayout from '@/components/layout/AppLayout';
 import Dashboard from '@/pages/Dashboard';
+import LiveSurgery from '@/pages/LiveSurgery';
 import UploadVideo from '@/pages/UploadVideo';
 import Analyses from '@/pages/Analyses';
 import AnalysisDetail from '@/pages/AnalysisDetail';
@@ -19,6 +20,7 @@ const MainApp = () => {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/live" element={<LiveSurgery />} />
         <Route path="/upload" element={<UploadVideo />} />
         <Route path="/analyses" element={<Analyses />} />
         <Route path="/analysis/:id" element={<AnalysisDetail />} />

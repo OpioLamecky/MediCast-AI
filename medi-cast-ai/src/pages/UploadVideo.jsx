@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
-import { Upload, FileVideo, Loader2 } from 'lucide-react';
+import { SURGICAL_PROCEDURES, SURGICAL_DEPARTMENTS } from '@/api/aiService';
+import { Upload, FileVideo, Loader2, Radio, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,16 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 
-const procedures = [
-  "Laparoscopic Cholecystectomy", "Appendectomy", "Hernia Repair", "Knee Arthroscopy",
-  "Hip Replacement", "Cataract Surgery", "Coronary Bypass", "Spinal Fusion",
-  "Hysterectomy", "Gastric Bypass", "Other"
-];
-
-const departments = [
-  "General Surgery", "Orthopedics", "Cardiology", "Neurology",
-  "Ophthalmology", "Gynecology", "Urology", "Other"
-];
+const procedures = SURGICAL_PROCEDURES;
+const departments = SURGICAL_DEPARTMENTS;
 
 export default function UploadVideo() {
   const navigate = useNavigate();
@@ -88,9 +81,26 @@ export default function UploadVideo() {
 
   return (
     <div className="p-6 md:p-8 max-w-2xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-slate-900 font-heading">Upload Surgery Video</h1>
-        <p className="text-sm text-slate-500 mt-1">Add a new surgical video for AI analysis</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900 font-heading">Upload Pre-Recorded Surgery</h1>
+          <p className="text-sm text-slate-500 mt-1">Upload a recorded surgical video or switch to Live PC Camera stream</p>
+        </div>
+
+        {/* Mode Switcher */}
+        <div className="inline-flex p-1 rounded-xl bg-stone-200/75 border border-stone-300/60 self-start sm:self-auto shrink-0">
+          <Link
+            to={`/live?mode=live${form.procedure_type ? `&procedure=${encodeURIComponent(form.procedure_type)}` : ''}`}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-600 hover:text-stone-900 transition-all"
+          >
+            <Radio className="w-3.5 h-3.5 text-red-500" />
+            <span>Live Camera</span>
+          </Link>
+          <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-teal-800 shadow-xs border border-teal-200/80">
+            <Video className="w-3.5 h-3.5 text-teal-600" />
+            <span>Pre-Recorded</span>
+          </span>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">

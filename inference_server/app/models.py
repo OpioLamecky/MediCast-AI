@@ -13,17 +13,32 @@ class GPUMetrics(BaseModel):
     memory_used: float = 0.0
     temperature: float = 0.0
 
+class LiveAlert(BaseModel):
+    severity: str = "low"
+    title: str = ""
+    description: str = ""
+    recommendation: str = ""
+    timestamp: str = ""
+
 class AnalysisResult(BaseModel):
     phase: str = ""
+    risk_level: str = "low"
+    safety_score: int = 94
     anatomy_identified: List[str] = []
+    instruments_detected: List[str] = []
     safety_concerns: List[str] = []
+    alerts: List[Dict[str, Any]] = []
     education_tips: List[str] = []
+    guidance_tip: str = ""
     timestamp: float = 0.0
 
 class FrameAnalysisRequest(BaseModel):
     sessionId: str
     timestamp: float
     imageBase64: str
+    procedureType: Optional[str] = "Laparoscopic Cholecystectomy"
+    surgeonName: Optional[str] = ""
+    frameMetrics: Optional[Dict[str, Any]] = None
 
 class FrameAnalysisResponse(BaseModel):
     timestamp: float

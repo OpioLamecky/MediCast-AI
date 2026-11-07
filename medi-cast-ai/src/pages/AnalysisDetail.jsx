@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { analyzeSurgicalVideo } from '@/api/aiService';
-import { ArrowLeft, Loader2, Wrench, Brain, FileText, Square, RotateCcw, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Wrench, Brain, FileText, Square, RotateCcw, CheckCircle2, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import ScoreRing from '@/components/analysis/ScoreRing';
@@ -198,7 +198,12 @@ export default function AnalysisDetail() {
           </div>
         </div>
         
-        <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto flex-wrap">
+        <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto flex-wrap">
+          <Link to={`/live?mode=live${video.procedure_type ? `&procedure=${encodeURIComponent(video.procedure_type)}` : ''}`}>
+            <Button variant="outline" className="border-red-200 bg-red-50/70 text-red-700 hover:bg-red-100 font-medium">
+              <Radio className="w-4 h-4 mr-1.5" /> Live Surgery Mode
+            </Button>
+          </Link>
         {analysis && !analyzing ? (
           <>
             <Button onClick={downloadReport} className="bg-teal-700 hover:bg-teal-800 text-white shadow-sm font-medium">
