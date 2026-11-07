@@ -171,6 +171,8 @@ export default function LiveSurgery() {
   // ── PC Camera & Recording State ──
   const [cameraStatus, setCameraStatus] = useState('initializing'); // 'initializing' | 'ready' | 'error' | 'off'
   const [cameraError, setCameraError] = useState('');
+  const [cameraErrorKind, setCameraErrorKind] = useState('browser'); // 'browser' | 'system' | 'busy' | 'not_found' | 'other'
+  const [isVirtualScope, setIsVirtualScope] = useState(false);
   const [videoDevices, setVideoDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
   const [micEnabled, setMicEnabled] = useState(false);
@@ -236,6 +238,7 @@ export default function LiveSurgery() {
   const isAnalyzingRef = useRef(false);
   const lastAudioAlertTimeRef = useRef(0);
   const elapsedRef = useRef(0);
+  const virtualAnimRef = useRef(null);
 
   // Accumulators for final post-operative report synthesis
   const sessionLogRef = useRef({
@@ -271,6 +274,10 @@ export default function LiveSurgery() {
 
   // ── Stop PC Camera Cleanly ──
   const stopCameraStream = useCallback(() => {
+    if (virtualAnimRef.current) {
+      cancelAnimationFrame(virtualAnimRef.current);
+      virtualAnimRef.current = null;
+    }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       try {
         mediaRecorderRef.current.stop();
@@ -285,19 +292,26 @@ export default function LiveSurgery() {
     if (liveVideoRef.current) {
       liveVideoRef.current.srcObject = null;
     }
+    setIsVirtualScope(false);
     setCameraStatus('off');
     setIsRecording(false);
     setIsPaused(false);
   }, []);
 
-  // ── Start PC Camera Stream ──
+  // ── Start PC Camera Stream (with Automatic Constraint Fallback & Permission Diagnostics) ──
   const startCameraStream = useCallback(async (deviceIdOverride) => {
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraStatus('error');
+      setCameraErrorKind('other');
       setCameraError('Camera API is not supported in this browser or non-secure context.');
       return;
     }
 
+    if (virtualAnimRef.current) {
+      cancelAnimationFrame(virtualAnimRef.current);
+      virtualAnimRef.current = null;
+    }
+    setIsVirtualScope(false);
     setCameraStatus('initializing');
     setCameraError('');
 
@@ -310,14 +324,25 @@ export default function LiveSurgery() {
     const targetDevice = deviceIdOverride !== undefined ? deviceIdOverride : selectedDeviceId;
 
     try {
-      const constraints = {
-        video: targetDevice
-          ? { deviceId: { exact: targetDevice }, width: { ideal: 1280 }, height: { ideal: 720 } }
-          : { width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: micEnabled
-      };
+      let stream = null;
+      try {
+        const primaryConstraints = {
+          video: targetDevice
+            ? { deviceId: { ideal: targetDevice }, width: { ideal: 1280 }, height: { ideal: 720 } }
+            : { width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: micEnabled
+        };
+        stream = await navigator.mediaDevices.getUserMedia(primaryConstraints);
+      } catch (primaryErr) {
+        // If high-res or mic constraint failed (not permission denial), fallback to basic { video: true }
+        if (primaryErr.name !== 'NotAllowedError' && primaryErr.name !== 'PermissionDeniedError') {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          if (micEnabled) setMicEnabled(false);
+        } else {
+          throw primaryErr;
+        }
+      }
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       mediaStreamRef.current = stream;
 
       if (liveVideoRef.current) {
@@ -339,15 +364,117 @@ export default function LiveSurgery() {
     } catch (err) {
       console.error('[LiveSurgery] Camera access error:', err);
       setCameraStatus('error');
+      const msg = (err.message || '').toLowerCase();
+
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setCameraError('Camera permission was denied. Please allow camera access in your browser address bar to stream live surgeries, or switch to Pre-Recorded Video mode.');
+        if (msg.includes('system')) {
+          setCameraErrorKind('system');
+          setCameraError('Windows OS Privacy Settings are currently blocking your browser from using the PC camera.');
+        } else {
+          setCameraErrorKind('browser');
+          setCameraError('Browser camera access is currently blocked or dismissed for this site.');
+        }
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        setCameraErrorKind('busy');
+        setCameraError('Your PC camera is currently in use by another app (e.g. Zoom, Teams, or Windows Camera). Close the other app and click Retry.');
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        setCameraError('No PC camera or surgical video capture device was detected. Connect a camera or switch to Pre-Recorded Video mode.');
+        setCameraErrorKind('not_found');
+        setCameraError('No PC camera or surgical capture device was detected on this computer.');
       } else {
+        setCameraErrorKind('other');
         setCameraError(err.message || 'Unable to initialize PC camera stream.');
       }
     }
   }, [selectedDeviceId, micEnabled]);
+
+  // ── Start Virtual Surgical Endoscope Stream (Fallback when PC Camera is unavailable/locked) ──
+  const startVirtualScopeStream = useCallback(() => {
+    stopCameraStream();
+    const simCanvas = document.createElement('canvas');
+    simCanvas.width = 960;
+    simCanvas.height = 540;
+    const ctx = simCanvas.getContext('2d');
+    let t = 0;
+
+    const renderFrame = () => {
+      t += 0.035;
+      const w = simCanvas.width;
+      const h = simCanvas.height;
+      const grad = ctx.createRadialGradient(w * 0.5, h * 0.5, 40, w * 0.5, h * 0.5, w * 0.55);
+      grad.addColorStop(0, '#c86d66');
+      grad.addColorStop(0.65, '#883e3b');
+      grad.addColorStop(1, '#18141c');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      // Simulated microvascular network & avascular plane
+      ctx.strokeStyle = 'rgba(153, 27, 27, 0.55)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(90, h * 0.25);
+      ctx.bezierCurveTo(w * 0.35, h * 0.4 + Math.sin(t) * 12, w * 0.6, h * 0.2, w - 90, h * 0.38);
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(94, 234, 212, 0.6)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(140, h * 0.68);
+      ctx.quadraticCurveTo(w * 0.5, h * 0.42 + Math.sin(t * 0.8) * 16, w - 140, h * 0.62);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Simulated laparoscopic dissector tip
+      const tipX = w * 0.52 + Math.cos(t * 1.2) * 55;
+      const tipY = h * 0.5 + Math.sin(t * 1.5) * 30;
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 11;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(w - 40, h + 10);
+      ctx.lineTo(tipX, tipY);
+      ctx.stroke();
+
+      virtualAnimRef.current = requestAnimationFrame(renderFrame);
+    };
+    renderFrame();
+
+    const stream = simCanvas.captureStream(25);
+    mediaStreamRef.current = stream;
+    if (liveVideoRef.current) {
+      liveVideoRef.current.srcObject = stream;
+      liveVideoRef.current.play().catch(() => {});
+    }
+    setIsVirtualScope(true);
+    setCameraError('');
+    setCameraStatus('ready');
+    toast({
+      title: 'Virtual Surgical Scope Active',
+      description: 'Streaming live simulated surgical scope feed for AI monitoring & recording.'
+    });
+  }, [stopCameraStream, toast]);
+
+  // Auto-listen to browser camera permission changes so flipping "Allow" in Chrome URL bar connects immediately!
+  useEffect(() => {
+    if (mode !== 'live' || !navigator.permissions?.query) return;
+    let permStatus = null;
+    let cancelled = false;
+
+    navigator.permissions.query({ name: 'camera' }).then((status) => {
+      if (cancelled) return;
+      permStatus = status;
+      status.onchange = () => {
+        if (status.state === 'granted' && mode === 'live') {
+          startCameraStream();
+        }
+      };
+    }).catch(() => {});
+
+    return () => {
+      cancelled = true;
+      if (permStatus) permStatus.onchange = null;
+    };
+  }, [mode, startCameraStream]);
 
   // Activate PC camera automatically when mode === 'live', release when switching to 'prerecorded'
   useEffect(() => {
@@ -1260,15 +1387,31 @@ export default function LiveSurgery() {
                   </div>
                 )}
 
-                {/* Camera Error / No Hardware Overlay */}
+                {/* Camera Error / Permission Unlock Guide Overlay */}
                 {cameraStatus === 'error' && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-slate-950/95 p-6 text-center max-w-md mx-auto">
-                    <div className="w-12 h-12 rounded-2xl bg-red-500/20 border border-red-500/40 text-red-400 flex items-center justify-center mb-3">
-                      <CameraOff className="w-6 h-6" />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-slate-950/95 p-5 sm:p-6 text-center max-w-lg mx-auto">
+                    <div className="w-11 h-11 rounded-2xl bg-red-500/20 border border-red-500/40 text-red-400 flex items-center justify-center mb-2.5">
+                      <CameraOff className="w-5 h-5" />
                     </div>
-                    <h3 className="text-base font-semibold">PC Camera Stream Unavailable</h3>
-                    <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">{cameraError}</p>
-                    <div className="flex items-center gap-2.5 mt-4 flex-wrap justify-center">
+                    <h3 className="text-sm sm:text-base font-semibold">Enable PC Camera Access</h3>
+                    <p className="text-xs text-slate-300 mt-1 leading-relaxed">{cameraError}</p>
+
+                    {cameraErrorKind === 'browser' && (
+                      <div className="mt-3 w-full rounded-xl bg-slate-900/90 border border-slate-700/80 p-3 text-left text-xs text-slate-200 space-y-1.5">
+                        <p className="font-semibold text-teal-300">How to unlock in Chrome / Edge (takes 5 seconds):</p>
+                        <p>1. Click the <strong>Site Settings sliders icon</strong> on the left side of the URL address bar.</p>
+                        <p>2. Switch <strong>Camera</strong> to <strong>On / Allow</strong> — your camera feed will start automatically!</p>
+                      </div>
+                    )}
+
+                    {cameraErrorKind === 'system' && (
+                      <div className="mt-3 w-full rounded-xl bg-slate-900/90 border border-slate-700/80 p-3 text-left text-xs text-slate-200 space-y-1.5">
+                        <p className="font-semibold text-amber-300">Blocked by Windows Privacy Settings:</p>
+                        <p>Open <strong>Windows Settings → Privacy &amp; security → Camera</strong> and turn ON <strong>Camera access</strong> &amp; <strong>Let desktop apps access your camera</strong>, then click Retry below.</p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 mt-4 flex-wrap justify-center">
                       <Button
                         type="button"
                         size="sm"
@@ -1276,7 +1419,16 @@ export default function LiveSurgery() {
                         className="bg-teal-600 hover:bg-teal-700 text-white text-xs"
                       >
                         <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                        Retry Camera Access
+                        Retry PC Camera
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={startVirtualScopeStream}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                        Use Virtual Surgical Scope
                       </Button>
                       <Button
                         type="button"
@@ -1286,7 +1438,7 @@ export default function LiveSurgery() {
                         className="border-slate-600 bg-slate-900 text-slate-200 hover:bg-slate-800 text-xs"
                       >
                         <Video className="w-3.5 h-3.5 mr-1.5" />
-                        Switch to Pre-Recorded Videos
+                        Pre-Recorded Videos
                       </Button>
                     </div>
                   </div>
@@ -1483,6 +1635,19 @@ export default function LiveSurgery() {
                         )}
                       </Button>
                     </>
+                  )}
+
+                  {isVirtualScope && !isRecording && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => startCameraStream()}
+                      className="text-xs gap-1.5 border-teal-300 bg-teal-50 text-teal-800"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>Switch to Real PC Camera</span>
+                    </Button>
                   )}
 
                   <Button

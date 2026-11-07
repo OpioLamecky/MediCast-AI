@@ -20,6 +20,10 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 20.0.0
+    headers:
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(self), microphone=(self)
     routes:
       - type: rewrite
         source: /api/*
