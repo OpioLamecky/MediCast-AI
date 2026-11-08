@@ -5,6 +5,13 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import ScrollToTop from './components/ScrollToTop';
 
+// Auth context & pages
+import { AuthProvider } from '@/lib/AuthContext';
+import Login from '@/pages/Login';
+import Register from '@/pages/Register';
+import ForgotPassword from '@/pages/ForgotPassword';
+import ResetPassword from '@/pages/ResetPassword';
+
 // App pages
 import AppLayout from '@/components/layout/AppLayout';
 import Dashboard from '@/pages/Dashboard';
@@ -20,6 +27,11 @@ import { SubscriptionProvider } from '@/lib/SubscriptionContext';
 const MainApp = () => {
   return (
     <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/live" element={<LiveSurgery />} />
@@ -38,13 +50,15 @@ const MainApp = () => {
 function App() {
   return (
     <QueryClientProvider client={queryClientInstance}>
-      <SubscriptionProvider>
-        <Router>
-          <ScrollToTop />
-          <MainApp />
-        </Router>
-        <Toaster />
-      </SubscriptionProvider>
+      <AuthProvider>
+        <SubscriptionProvider>
+          <Router>
+            <ScrollToTop />
+            <MainApp />
+          </Router>
+          <Toaster />
+        </SubscriptionProvider>
+      </AuthProvider>
     </QueryClientProvider>
   )
 }

@@ -524,7 +524,7 @@ export default function Dashboard() {
                 <Link to="/live">
                   <Button className="bg-red-600 hover:bg-red-700 text-white text-xs gap-1.5 rounded-xl shadow-xs">
                     <Radio className="w-3.5 h-3.5" />
-                    Start Live Surgery (PC Camera)
+                    Start Live Surgery (Camera)
                   </Button>
                 </Link>
                 <Link to="/upload">

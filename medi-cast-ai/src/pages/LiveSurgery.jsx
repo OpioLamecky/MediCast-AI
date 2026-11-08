@@ -179,7 +179,7 @@ export default function LiveSurgery() {
   const initialMode = searchParams.get('mode') === 'prerecorded' ? 'prerecorded' : 'live';
   const initialProc = searchParams.get('procedure') || 'Laparoscopic Cholecystectomy';
 
-  // ── Mode State: 'live' (PC Camera) vs 'prerecorded' (Pre-Recorded Surgical Videos) ──
+  // ── Mode State: 'live' (Any Camera / OR Scope) vs 'prerecorded' (Pre-Recorded Surgical Videos) ──
   const [mode, setMode] = useState(initialMode);
 
   // ── Case & Procedure Configuration ──
@@ -195,7 +195,7 @@ export default function LiveSurgery() {
   });
   const [showCaseConfig, setShowCaseConfig] = useState(false);
 
-  // ── PC Camera & Recording State ──
+  // ── Camera Hardware & Recording State ──
   const [cameraStatus, setCameraStatus] = useState('initializing'); // 'initializing' | 'ready' | 'error' | 'off'
   const [cameraError, setCameraError] = useState('');
   const [cameraErrorKind, setCameraErrorKind] = useState('browser'); // 'browser' | 'system' | 'busy' | 'not_found' | 'other'
@@ -290,7 +290,7 @@ export default function LiveSurgery() {
     );
   };
 
-  // ── Stop PC Camera Cleanly ──
+  // ── Stop Camera Hardware Cleanly ──
   const stopCameraStream = useCallback(() => {
     if (virtualAnimRef.current) {
       cancelAnimationFrame(virtualAnimRef.current);
@@ -316,7 +316,7 @@ export default function LiveSurgery() {
     setIsPaused(false);
   }, []);
 
-  // ── Start PC Camera Stream (with Automatic Constraint Fallback & Permission Diagnostics) ──
+  // ── Start Camera Stream (with Universal Device Detection & Fallback) ──
   const startCameraStream = useCallback(async (deviceIdOverride) => {
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraStatus('error');
@@ -345,13 +345,26 @@ export default function LiveSurgery() {
     try {
       let stream = null;
       try {
+        // Attempt connecting to the specific camera device selected by the user (scope, capture card, or camera)
         const primaryConstraints = {
-          video: targetDevice
-            ? { deviceId: { ideal: targetDevice }, width: { ideal: 1280 }, height: { ideal: 720 } }
-            : { width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: targetDevice && targetDevice !== 'default'
+            ? { deviceId: { exact: targetDevice }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+            : { width: { ideal: 1920 }, height: { ideal: 1080 } },
           audio: micEnabled
         };
-        stream = await navigator.mediaDevices.getUserMedia(primaryConstraints);
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(primaryConstraints);
+        } catch (exactErr) {
+          // If exact device constraint was rejected by hardware driver, try ideal constraint
+          if (targetDevice && targetDevice !== 'default') {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { deviceId: { ideal: targetDevice } },
+              audio: micEnabled
+            });
+          } else {
+            throw exactErr;
+          }
+        }
       } catch (primaryErr) {
         // If high-res or mic constraint failed (not permission denial), fallback to basic { video: true }
         if (primaryErr.name !== 'NotAllowedError' && primaryErr.name !== 'PermissionDeniedError') {
@@ -369,7 +382,7 @@ export default function LiveSurgery() {
         await liveVideoRef.current.play().catch(() => {});
       }
 
-      // Enumerate available cameras (PC webcam, USB surgical scope, capture card)
+      // Enumerate all available cameras (USB surgical laparoscopes, HDMI capture cards, webcams)
       const devices = await navigator.mediaDevices.enumerateDevices();
       const cams = devices.filter(d => d.kind === 'videoinput');
       setVideoDevices(cams);
@@ -388,25 +401,25 @@ export default function LiveSurgery() {
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         if (msg.includes('system')) {
           setCameraErrorKind('system');
-          setCameraError('Windows OS Privacy Settings are currently blocking your browser from using the PC camera.');
+          setCameraError('Windows OS Privacy Settings are currently blocking your browser from using the camera or video capture devices.');
         } else {
           setCameraErrorKind('browser');
           setCameraError('Browser camera access is currently blocked or dismissed for this site.');
         }
       } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
         setCameraErrorKind('busy');
-        setCameraError('Your PC camera is currently in use by another app (e.g. Zoom, Teams, or Windows Camera). Close the other app and click Retry.');
+        setCameraError('The selected camera or capture device is currently in use by another app. Close other video apps and click Retry.');
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
         setCameraErrorKind('not_found');
-        setCameraError('No PC camera or surgical capture device was detected on this computer.');
+        setCameraError('No camera, surgical laparoscope, or video capture card was detected on this computer.');
       } else {
         setCameraErrorKind('other');
-        setCameraError(err.message || 'Unable to initialize PC camera stream.');
+        setCameraError(err.message || 'Unable to initialize camera stream.');
       }
     }
   }, [selectedDeviceId, micEnabled]);
 
-  // ── Start Virtual Surgical Endoscope Stream (Fallback when PC Camera is unavailable/locked) ──
+  // ── Start Virtual Surgical Endoscope Stream (Fallback when Camera hardware is unavailable/locked) ──
   const startVirtualScopeStream = useCallback(() => {
     stopCameraStream();
     cameraManuallyStoppedRef.current = false;
@@ -496,7 +509,23 @@ export default function LiveSurgery() {
     };
   }, [mode, startCameraStream]);
 
-  // Activate PC camera automatically when mode === 'live', release when switching to 'prerecorded'
+  // Listen to hardware connect/disconnect (e.g. plugging in or unplugging any USB laparoscope / capture card)
+  useEffect(() => {
+    if (!navigator.mediaDevices?.addEventListener) return;
+    const handleDeviceChangeEvt = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const cams = devices.filter(d => d.kind === 'videoinput');
+        setVideoDevices(cams);
+      } catch (_) {}
+    };
+    navigator.mediaDevices.addEventListener('devicechange', handleDeviceChangeEvt);
+    return () => {
+      navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChangeEvt);
+    };
+  }, []);
+
+  // Activate camera automatically when mode === 'live', release when switching to 'prerecorded'
   useEffect(() => {
     if (mode === 'live') {
       startCameraStream();
@@ -783,11 +812,11 @@ export default function LiveSurgery() {
     };
   }, [mode, cameraStatus, isRecording, aiWatchActive, isPaused, isPrerecordedPlaying, runSingleFrameAnalysis]);
 
-  // ── Start Live Surgery Recording (PC Camera -> MediaRecorder) ──
+  // ── Start Live Surgery Recording (Camera -> MediaRecorder) ──
   const startLiveRecording = () => {
     if (!mediaStreamRef.current || cameraStatus !== 'ready') {
       toast({
-        title: 'PC Camera Not Ready',
+        title: 'Camera Not Ready',
         description: 'Please ensure camera access is enabled before starting surgery recording.',
         variant: 'destructive'
       });
@@ -846,7 +875,7 @@ export default function LiveSurgery() {
 
       toast({
         title: 'Live Surgery Recording & AI Watch Active',
-        description: `Recording ${procedureType} from PC camera with real-time intraoperative risk alerts.`
+        description: `Recording ${procedureType} from camera with real-time intraoperative risk alerts.`
       });
 
       // Kick off immediate frame check
@@ -913,7 +942,7 @@ export default function LiveSurgery() {
     }
 
     setUnverifiedSessionNotice(
-      'Live surgery session was stopped by user. Real-time AI monitoring is paused — you can download any captured video clip, restart recording, or turn off your PC camera.'
+      'Live surgery session was stopped by user. Real-time AI monitoring is paused — you can download any captured video clip, restart recording, or turn off your camera.'
     );
 
     toast({
@@ -922,7 +951,7 @@ export default function LiveSurgery() {
     });
   };
 
-  // ── Completely Stop Live Surgery & Turn Off PC Camera Stream ──
+  // ── Completely Stop Live Surgery & Turn Off Camera Stream ──
   const handleStopLiveCamera = () => {
     sessionIdRef.current = `camera_off_${Date.now()}`;
     cameraManuallyStoppedRef.current = true;
@@ -938,11 +967,11 @@ export default function LiveSurgery() {
       ...createStandbyTelemetry(procedureType),
       phase: 'Live Surgery Stream Stopped',
       scene_observed:
-        'Live surgery camera stream is turned off. Click "Turn On PC Camera" whenever you want to resume live surgery monitoring.'
+        'Live surgery camera stream is turned off. Click "Turn On Camera" whenever you want to resume live surgery monitoring.'
     });
     toast({
       title: 'Live Camera & AI Stream Stopped',
-      description: 'Your PC camera has been turned off.'
+      description: 'Your camera has been turned off.'
     });
   };
 
@@ -1250,7 +1279,7 @@ export default function LiveSurgery() {
                 {isRecording
                   ? 'RECORDING LIVE SURGERY'
                   : cameraStatus === 'ready'
-                    ? 'PC CAMERA ACTIVE'
+                    ? 'CAMERA ACTIVE'
                     : cameraStatus === 'off'
                       ? 'LIVE SURGERY STOPPED'
                       : 'CAMERA STANDBY'}
@@ -1281,7 +1310,7 @@ export default function LiveSurgery() {
           </div>
           <p className="text-xs sm:text-sm text-stone-600 mt-1">
             {mode === 'live'
-              ? 'Real-time PC camera capture, continuous intraoperative AI risk warnings, anatomical plane tracking & live recording'
+              ? 'Real-time surgical camera capture, continuous intraoperative AI risk warnings, anatomical plane tracking & live recording'
               : 'Continue watching, uploading, or analyzing pre-recorded surgical videos across all surgical procedures'}
           </p>
         </div>
@@ -1298,7 +1327,7 @@ export default function LiveSurgery() {
             }`}
           >
             <Radio className={`w-4 h-4 ${mode === 'live' ? 'text-red-500 animate-pulse' : 'text-stone-400'}`} />
-            <span>Live Surgery (PC Camera)</span>
+            <span>Live Surgery (Camera)</span>
           </button>
           <button
             type="button"
@@ -1340,7 +1369,7 @@ export default function LiveSurgery() {
             {mode === 'live' ? (
               <div>
                 <Label className="text-xs font-semibold text-stone-600 uppercase tracking-wider">
-                  Camera Source (PC / Scope)
+                  Camera Source (Scope / Laparoscope / Webcam)
                 </Label>
                 <Select
                   value={selectedDeviceId || 'default'}
@@ -1348,15 +1377,15 @@ export default function LiveSurgery() {
                   disabled={isRecording}
                 >
                   <SelectTrigger className="mt-1 bg-stone-50/70 border-stone-200 text-xs sm:text-sm">
-                    <SelectValue placeholder="Default PC Camera" />
+                    <SelectValue placeholder="Default Camera" />
                   </SelectTrigger>
                   <SelectContent>
                     {videoDevices.length === 0 ? (
-                      <SelectItem value="default">Default PC Camera</SelectItem>
+                      <SelectItem value="default">Default Camera</SelectItem>
                     ) : (
                       videoDevices.map((dev, idx) => (
                         <SelectItem key={dev.deviceId || idx} value={dev.deviceId || 'default'}>
-                          {dev.label || `Camera Input ${idx + 1}`}
+                          {dev.label || `Camera ${idx + 1}`}
                         </SelectItem>
                       ))
                     )}
@@ -1583,7 +1612,7 @@ export default function LiveSurgery() {
           <div className="relative bg-slate-950 rounded-2xl overflow-hidden aspect-video shadow-xl ring-1 ring-stone-900/15 flex items-center justify-center">
             {mode === 'live' ? (
               <>
-                {/* Live PC Camera Video Feed */}
+                {/* Live Camera Video Feed */}
                 <video
                   ref={liveVideoRef}
                   autoPlay
@@ -1598,7 +1627,7 @@ export default function LiveSurgery() {
                 {cameraStatus === 'initializing' && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-slate-950/90 p-6 text-center">
                     <Loader2 className="w-10 h-10 text-teal-400 animate-spin mb-3" />
-                    <p className="text-sm font-semibold">Activating PC Surgical Camera Stream...</p>
+                    <p className="text-sm font-semibold">Activating Surgical Camera Stream...</p>
                     <p className="text-xs text-slate-400 mt-1">Grant browser camera permission if prompted</p>
                   </div>
                 )}
@@ -1611,7 +1640,7 @@ export default function LiveSurgery() {
                     </div>
                     <h3 className="text-sm sm:text-base font-semibold">Live Surgery Stream Stopped</h3>
                     <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-                      Your PC camera and real-time surgical AI monitoring are currently turned off. You can restart the live camera anytime or continue with pre-recorded videos.
+                      Your surgical camera and real-time AI monitoring are currently turned off. You can restart the live camera anytime or continue with pre-recorded videos.
                     </p>
                     <div className="flex items-center gap-2 mt-4 flex-wrap justify-center">
                       <Button
@@ -1621,7 +1650,7 @@ export default function LiveSurgery() {
                         className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold gap-1.5"
                       >
                         <Camera className="w-3.5 h-3.5" />
-                        <span>Turn On PC Camera</span>
+                        <span>Turn On Camera</span>
                       </Button>
                       <Button
                         type="button"
@@ -1652,7 +1681,7 @@ export default function LiveSurgery() {
                     <div className="w-11 h-11 rounded-2xl bg-red-500/20 border border-red-500/40 text-red-400 flex items-center justify-center mb-2.5">
                       <CameraOff className="w-5 h-5" />
                     </div>
-                    <h3 className="text-sm sm:text-base font-semibold">Enable PC Camera Access</h3>
+                    <h3 className="text-sm sm:text-base font-semibold">Enable Camera Access</h3>
                     <p className="text-xs text-slate-300 mt-1 leading-relaxed">{cameraError}</p>
 
                     {cameraErrorKind === 'browser' && (
@@ -1678,7 +1707,7 @@ export default function LiveSurgery() {
                         className="bg-teal-600 hover:bg-teal-700 text-white text-xs"
                       >
                         <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                        Retry PC Camera
+                        Retry Camera Access
                       </Button>
                       <Button
                         type="button"
@@ -1876,7 +1905,7 @@ export default function LiveSurgery() {
                       className="bg-teal-600 hover:bg-teal-700 text-white font-semibold shadow-sm gap-2 px-5"
                     >
                       <Camera className="w-4 h-4" />
-                      <span>Turn On PC Camera</span>
+                      <span>Turn On Camera</span>
                     </Button>
                   ) : !isRecording ? (
                     <>
@@ -1896,7 +1925,7 @@ export default function LiveSurgery() {
                           variant="outline"
                           onClick={handleStopLiveCamera}
                           className="border-red-200 bg-red-50/70 text-red-700 hover:bg-red-100 font-semibold gap-1.5 text-xs sm:text-sm"
-                          title="Stop live surgery stream and turn off PC camera"
+                          title="Stop live surgery stream and turn off camera"
                         >
                           <CameraOff className="w-4 h-4" />
                           <span>Stop Live Surgery</span>
@@ -1953,7 +1982,7 @@ export default function LiveSurgery() {
                         onClick={handleStopLiveCamera}
                         disabled={isSavingSession}
                         className="border-stone-300 text-stone-700 hover:bg-stone-100 text-xs gap-1.5"
-                        title="Stop recording and turn off PC camera hardware"
+                        title="Stop recording and turn off camera hardware"
                       >
                         <CameraOff className="w-3.5 h-3.5 text-red-600" />
                         <span>Turn Off Camera</span>
@@ -1970,7 +1999,7 @@ export default function LiveSurgery() {
                       className="text-xs gap-1.5 border-teal-300 bg-teal-50 text-teal-800"
                     >
                       <Camera className="w-3.5 h-3.5" />
-                      <span>Switch to Real PC Camera</span>
+                      <span>Switch to Real Camera</span>
                     </Button>
                   )}
 
@@ -2293,7 +2322,7 @@ export default function LiveSurgery() {
               <Video className="w-8 h-8 text-stone-400 mx-auto mb-2" />
               <p className="text-sm font-semibold text-stone-800">No pre-recorded surgical videos found for this filter</p>
               <p className="text-xs text-stone-500 mt-1">
-                Upload a pre-recorded surgical video above or switch to Live Surgery mode to record from your PC camera.
+                Upload a pre-recorded surgical video above or switch to Live Surgery mode to record from your camera or surgical scope.
               </p>
             </div>
           ) : (

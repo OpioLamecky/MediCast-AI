@@ -12,10 +12,13 @@ import {
   Trash2,
   Crown,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Lock,
+  LogOut
 } from 'lucide-react';
 import { getSavedConversations, saveConversations, createNewChat } from '@/lib/chatStorage';
 import { useSubscription } from '@/lib/SubscriptionContext';
+import { useAuth } from '@/lib/AuthContext';
 import SubscriptionModal from '@/components/subscription/SubscriptionModal';
 
 const navItems = [
@@ -34,6 +37,7 @@ export default function AppLayout() {
   const [searchParams] = useSearchParams();
   const [conversations, setConversations] = useState([]);
   const { plan, planId, isProOrHigher, usage, openUpgradeModal } = useSubscription();
+  const { user, isAuthenticated, logout } = useAuth();
 
   const activeChatId = searchParams.get('c');
   const isAssistantPage = location.pathname.startsWith('/assistant');
@@ -221,6 +225,36 @@ export default function AppLayout() {
                 </Link>
               )}
             </div>
+
+            {/* Surgeon Workstation Authentication Status */}
+            <div className="pt-2 mt-2 border-t border-stone-200/80 flex items-center justify-between text-[11px]">
+              {isAuthenticated ? (
+                <>
+                  <div className="flex items-center gap-1.5 min-w-0 text-stone-700 font-medium">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Workstation Verified" />
+                    <span className="truncate max-w-[130px] font-mono" title={user?.email}>
+                      {user?.email ? user.email.split('@')[0] : 'Surgeon Active'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => logout()}
+                    className="text-stone-400 hover:text-red-600 p-1 rounded transition-colors"
+                    title="Sign Out of Workstation"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              ) : (
+                <Link
+                  to="/login"
+                  className="w-full flex items-center justify-center gap-1.5 py-1 px-2 rounded-lg text-stone-600 hover:text-teal-700 hover:bg-teal-50/60 transition-colors font-medium text-[11px]"
+                >
+                  <Lock className="w-3 h-3 text-stone-400" />
+                  <span>Surgeon Sign In</span>
+                </Link>
+              )}
+            </div>
           </div>
         </div>
       </aside>
@@ -232,6 +266,26 @@ export default function AppLayout() {
             <Activity className="w-4 h-4 text-white" />
           </div>
           <span className="font-semibold text-slate-900">MediCast</span>
+        </div>
+        <div>
+          {isAuthenticated ? (
+            <button
+              type="button"
+              onClick={() => logout()}
+              className="text-xs text-stone-500 hover:text-red-600 font-medium flex items-center gap-1"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign Out</span>
+            </button>
+          ) : (
+            <Link
+              to="/login"
+              className="text-xs text-teal-700 font-semibold flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200"
+            >
+              <Lock className="w-3 h-3" />
+              <span>Sign In</span>
+            </Link>
+          )}
         </div>
       </div>
 

@@ -99,7 +99,7 @@ export const SUBSCRIPTION_TIERS = {
     features: [
       'Unlimited surgical video analyses',
       'Unlimited AI Surgical Assistant questions',
-      'Intraoperative Live PC Camera / OR Scope streaming',
+      'Intraoperative Live Camera / OR Scope streaming',
       'Continuous hemorrhage & proximity hazard voice alerts',
       'Accredited clinical Word audit report (.docx) export',
       'Full surgical kinematics & skill scoring',

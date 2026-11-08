@@ -172,7 +172,7 @@ export default function Subscription() {
               </span>
             </div>
             <p className="text-xs text-stone-700 font-medium">
-              {isProOrHigher ? 'Continuous PC camera / OR stream' : 'Preview trial session available'}
+              {isProOrHigher ? 'Continuous camera / OR scope stream' : 'Preview trial session available'}
             </p>
             <p className="text-[11px] text-stone-500 leading-tight">
               {isProOrHigher ? 'Full hazard alerts & telemetry' : 'Upgrade for continuous streaming'}
