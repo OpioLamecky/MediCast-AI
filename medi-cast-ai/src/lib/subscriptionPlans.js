@@ -1,29 +1,72 @@
 // ─────────────────────────────────────────────────────────────
-// MediCast AI Surgical Intelligence — Subscription Plans & Tiers
+// MediCast AI Surgical Intelligence — Subscription Plans (UGX & MTN MoMo)
 // ─────────────────────────────────────────────────────────────
 
+export const CURRENCY = 'UGX';
+
+export function formatUGX(amount) {
+  if (amount === 0) return 'UGX 0';
+  if (!amount || isNaN(amount)) return 'UGX 0';
+  return `UGX ${Number(amount).toLocaleString()}`;
+}
+
+export const CEREMONY_WALLET_CAMPAIGN_URL =
+  'https://ceremonywallet.com/events/contribution-towards-kazooba-josephs-introduction-';
+
+export const MTN_UGANDA_PREFIXES = ['077', '078', '076', '039', '25677', '25678', '25676', '25639'];
+
+export function isMtnUgandaNumber(phone) {
+  if (!phone) return false;
+  const cleaned = phone.replace(/[^0-9]/g, '');
+  if (cleaned.startsWith('256')) {
+    const sub = cleaned.slice(3, 5);
+    return ['77', '78', '76', '39'].includes(sub);
+  }
+  if (cleaned.startsWith('0')) {
+    const sub = cleaned.slice(1, 3);
+    return ['77', '78', '76', '39'].includes(sub);
+  }
+  if (cleaned.length === 9) {
+    const sub = cleaned.slice(0, 2);
+    return ['77', '78', '76', '39'].includes(sub);
+  }
+  return false;
+}
+
+export function normalizeUgandanPhone(phone) {
+  if (!phone) return '';
+  const cleaned = phone.replace(/[^0-9]/g, '');
+  if (cleaned.startsWith('256') && cleaned.length === 12) {
+    return `+${cleaned}`;
+  }
+  if (cleaned.startsWith('0') && cleaned.length === 10) {
+    return `+256 ${cleaned.slice(1, 4)} ${cleaned.slice(4, 7)} ${cleaned.slice(7)}`;
+  }
+  return phone;
+}
+
+// Reduced, high-conversion tier cards
 export const SUBSCRIPTION_TIERS = {
   free: {
     id: 'free',
-    name: 'Resident / Free',
-    badge: 'Resident Tier',
-    description: 'Essential surgical co-pilot & case analysis for surgical residents & trainees.',
-    priceMonthly: 0,
-    priceAnnualMonthly: 0,
+    name: 'Resident Tier',
+    badge: 'Free Tier',
+    description: 'Essential surgical co-pilot & case analysis for surgical residents and trainees.',
+    priceMonthlyUGX: 0,
+    priceAnnualMonthlyUGX: 0,
     limits: {
       videosPerMonth: 3,
       aiQueriesPerDay: 10,
       maxVideoMinutes: 20,
-      liveSurgeryStreaming: 'trial', // 'trial' allows 1 trial session
+      liveSurgeryStreaming: 'trial',
       wordReportExport: false,
       priorityGpu: false
     },
     features: [
       '3 surgical video analyses / month',
       '10 AI Surgical Assistant queries / day',
-      'Basic surgical phase timeline',
+      'Basic surgical phase timeline & metrics',
       'Real-time optical clarity telemetry',
-      'Standard on-screen risk event summary',
       '1 Live Surgery stream preview trial'
     ],
     highlight: false,
@@ -34,12 +77,13 @@ export const SUBSCRIPTION_TIERS = {
     name: 'Pro Surgeon',
     badge: 'Most Popular',
     description: 'Full intraoperative surgical vision intelligence & unlimited AI consultations for attending surgeons.',
-    priceMonthly: 49,
-    priceAnnualMonthly: 39, // $468 billed annually (Save 20%)
+    priceMonthlyUGX: 85000, // UGX 85,000 / month (~$23)
+    priceAnnualMonthlyUGX: 65000, // UGX 65,000 / month when paid annually (UGX 780,000 / year)
+    quickAmountsUGX: [50000, 85000, 100000, 200000],
     limits: {
       videosPerMonth: Infinity,
       aiQueriesPerDay: Infinity,
-      maxVideoMinutes: 240, // 4 hours
+      maxVideoMinutes: 240,
       liveSurgeryStreaming: 'unlimited',
       wordReportExport: true,
       priorityGpu: true
@@ -47,60 +91,32 @@ export const SUBSCRIPTION_TIERS = {
     features: [
       'Unlimited surgical video analyses',
       'Unlimited AI Surgical Assistant questions',
-      'Intraoperative live PC / OR camera streaming',
-      'Real-time hemorrhage & vital structure proximity alerts',
-      'Comprehensive clinical audit report (.docx) export',
+      'Intraoperative Live PC Camera / OR Scope streaming',
+      'Continuous hemorrhage & proximity hazard voice alerts',
+      'Accredited clinical Word audit report (.docx) export',
       'Full surgical kinematics & skill scoring',
-      'High-priority multimodal Vision AI inference'
+      'Instant payment via MTN Mobile Money'
     ],
     highlight: true,
-    ctaText: 'Upgrade to Pro'
-  },
-  enterprise: {
-    id: 'enterprise',
-    name: 'Hospital / OR Suite',
-    badge: 'Enterprise',
-    description: 'Institutional surgical video governance, department-wide audits, and multi-OR stream integrations.',
-    priceMonthly: 199,
-    priceAnnualMonthly: 159, // $1,908 billed annually
-    limits: {
-      videosPerMonth: Infinity,
-      aiQueriesPerDay: Infinity,
-      maxVideoMinutes: Infinity,
-      liveSurgeryStreaming: 'unlimited',
-      wordReportExport: true,
-      priorityGpu: true,
-      departmentMultiSurgeon: true
-    },
-    features: [
-      'Everything in Pro Surgeon',
-      'Multi-surgeon surgical department registry',
-      'Hospital Morbidity & Mortality (M&M) audit logging',
-      'Multi-room OR hardware & scope capture routing',
-      'HIPAA & institutional compliance data export',
-      'Custom surgical ontology fine-tuning',
-      'Dedicated 24/7 clinical AI support & SLA'
-    ],
-    highlight: false,
-    ctaText: 'Activate Hospital Suite'
+    ctaText: 'Upgrade with MTN MoMo'
   }
 };
 
 export const FAQ_ITEMS = [
   {
-    q: 'Can I cancel or change my plan anytime?',
+    q: 'How does payment with MTN Mobile Money work?',
+    a: 'When you click Upgrade, you enter your MTN phone number. MediCast AI triggers an instant prompt on your phone (via MTN MoMo). Enter your MTN Mobile Money PIN to approve, and your subscription activates immediately in UGX.'
+  },
+  {
+    q: 'Can I cancel or downgrade my plan anytime?',
     a: 'Yes. You can switch between Monthly and Annual billing or downgrade back to the Free Resident tier at any time without penalty.'
   },
   {
     q: 'How are video analysis quotas counted?',
-    a: 'Video analysis quotas reset automatically on the 1st of every calendar month. On the Free tier, you can analyze up to 3 surgical videos per month. Pro Surgeon and Hospital Suite include unlimited analyses.'
+    a: 'Video analysis quotas reset automatically on the 1st of every calendar month. On the Free Resident tier, you can analyze up to 3 surgical videos per month. Pro Surgeon includes unlimited analyses.'
   },
   {
     q: 'How does AI Assistant daily usage work?',
-    a: 'On the Free Resident tier, you have 10 AI surgical queries every day, which resets at midnight. Pro Surgeon and Hospital Suite offer unlimited queries.'
-  },
-  {
-    q: 'Can I use Live PC Camera Surgery on the Free plan?',
-    a: 'Free users get a full preview trial of the live surgical streaming module. Unlimited intraoperative streaming and continuous real-time hazard voice warnings require Pro Surgeon or Hospital Suite.'
+    a: 'On the Free Resident tier, you have 10 AI surgical queries every day, which resets at midnight. Pro Surgeon offers unlimited consultations.'
   }
 ];

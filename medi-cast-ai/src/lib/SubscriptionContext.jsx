@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { SUBSCRIPTION_TIERS } from './subscriptionPlans';
+import { SUBSCRIPTION_TIERS, formatUGX } from './subscriptionPlans';
 import { useToast } from '@/components/ui/use-toast';
 
-const STORAGE_KEY = 'medicast_subscription_state_v1';
+const STORAGE_KEY = 'medicast_subscription_state_v2';
 const SubscriptionContext = createContext(null);
 
 function getTodayString() {
@@ -21,6 +21,8 @@ function loadInitialState() {
     planId: 'free',
     billingInterval: 'monthly',
     subscribedAt: null,
+    lastPayment: null,
+    paymentHistory: [],
     usage: {
       videosAnalyzedThisMonth: 0,
       aiQueriesToday: 0,
@@ -31,7 +33,7 @@ function loadInitialState() {
   };
 
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('medicast_subscription_state_v1');
     if (!raw) return defaultState;
     const parsed = JSON.parse(raw);
 
@@ -49,10 +51,14 @@ function loadInitialState() {
       updatedUsage.lastAiQueryDate = today;
     }
 
+    const validPlan = parsed.planId && SUBSCRIPTION_TIERS[parsed.planId] ? parsed.planId : 'free';
+
     return {
-      planId: parsed.planId && SUBSCRIPTION_TIERS[parsed.planId] ? parsed.planId : 'free',
+      planId: validPlan,
       billingInterval: parsed.billingInterval || 'monthly',
       subscribedAt: parsed.subscribedAt || null,
+      lastPayment: parsed.lastPayment || null,
+      paymentHistory: Array.isArray(parsed.paymentHistory) ? parsed.paymentHistory : [],
       usage: updatedUsage
     };
   } catch (err) {
@@ -71,7 +77,6 @@ export function SubscriptionProvider({ children }) {
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      // Dispatch event for other tabs/listeners
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('medicast_subscription_change', { detail: state }));
       }
@@ -83,8 +88,7 @@ export function SubscriptionProvider({ children }) {
   const planId = state.planId;
   const currentPlan = SUBSCRIPTION_TIERS[planId] || SUBSCRIPTION_TIERS.free;
   const isPro = planId === 'pro';
-  const isEnterprise = planId === 'enterprise';
-  const isProOrHigher = isPro || isEnterprise;
+  const isProOrHigher = isPro;
   const isFree = planId === 'free';
 
   // Quota calculation helpers
@@ -101,7 +105,7 @@ export function SubscriptionProvider({ children }) {
       limit,
       used,
       plan: currentPlan.name,
-      reason: remaining > 0 ? null : `Free Resident quota reached (${limit}/${limit} videos analyzed this month). Upgrade to Pro Surgeon for unlimited video analyses.`
+      reason: remaining > 0 ? null : `Free Resident quota reached (${limit}/${limit} videos analyzed this month). Upgrade with MTN Mobile Money to Pro Surgeon for unlimited video analyses.`
     };
   }, [isProOrHigher, currentPlan, state.usage.videosAnalyzedThisMonth]);
 
@@ -110,7 +114,6 @@ export function SubscriptionProvider({ children }) {
       return { allowed: true, remaining: Infinity, limit: Infinity, plan: currentPlan.name };
     }
     const today = getTodayString();
-    // Check if daily reset needed
     const used = state.usage.lastAiQueryDate === today ? (state.usage.aiQueriesToday || 0) : 0;
     const limit = currentPlan.limits.aiQueriesPerDay;
     const remaining = Math.max(0, limit - used);
@@ -120,7 +123,7 @@ export function SubscriptionProvider({ children }) {
       limit,
       used,
       plan: currentPlan.name,
-      reason: remaining > 0 ? null : `Daily free limit reached (${limit}/${limit} AI questions today). Upgrade to Pro Surgeon for unlimited surgical reasoning.`
+      reason: remaining > 0 ? null : `Daily free limit reached (${limit}/${limit} AI questions today). Upgrade with MTN Mobile Money to Pro Surgeon for unlimited surgical reasoning.`
     };
   }, [isProOrHigher, currentPlan, state.usage.lastAiQueryDate, state.usage.aiQueriesToday]);
 
@@ -174,25 +177,42 @@ export function SubscriptionProvider({ children }) {
     setModalFeatureHint('');
   }, []);
 
-  const upgradePlan = useCallback((newPlanId, interval = 'monthly') => {
+  const upgradePlan = useCallback((newPlanId, interval = 'monthly', paymentDetails = null) => {
     if (!SUBSCRIPTION_TIERS[newPlanId]) return;
+
+    const paymentRecord = paymentDetails ? {
+      id: `momo_${Date.now()}`,
+      provider: 'MTN Mobile Money',
+      phone: paymentDetails.phone || '',
+      amountUGX: paymentDetails.amountUGX || (interval === 'annual' ? SUBSCRIPTION_TIERS[newPlanId].priceAnnualMonthlyUGX * 12 : SUBSCRIPTION_TIERS[newPlanId].priceMonthlyUGX),
+      transactionRef: paymentDetails.transactionRef || `MTN-MOMO-${String(Date.now()).slice(-6)}`,
+      date: new Date().toISOString(),
+      status: 'approved'
+    } : null;
 
     setState(prev => ({
       ...prev,
       planId: newPlanId,
       billingInterval: interval,
-      subscribedAt: new Date().toISOString()
+      subscribedAt: new Date().toISOString(),
+      lastPayment: paymentRecord || prev.lastPayment,
+      paymentHistory: paymentRecord ? [paymentRecord, ...prev.paymentHistory] : prev.paymentHistory
     }));
 
     setIsUpgradeModalOpen(false);
 
     const planInfo = SUBSCRIPTION_TIERS[newPlanId];
-    toast({
-      title: `Plan Activated: ${planInfo.name}!`,
-      description: newPlanId === 'free'
-        ? 'Your account is now on the Free Resident tier.'
-        : `All ${planInfo.name} capabilities are now unlocked (Unlimited Analyses, Deep AI Reasoning, Live OR Streaming).`
-    });
+    if (newPlanId === 'free') {
+      toast({
+        title: 'Switched to Free Resident Tier',
+        description: 'Your account is now on the Free Resident tier.'
+      });
+    } else {
+      toast({
+        title: `Payment Received via MTN MoMo!`,
+        description: `${planInfo.name} is now active (${paymentRecord ? formatUGX(paymentRecord.amountUGX) : ''}). Unlimited Video Analyses & AI Consultations unlocked!`
+      });
+    }
   }, [toast]);
 
   const value = {
@@ -200,9 +220,10 @@ export function SubscriptionProvider({ children }) {
     planId,
     billingInterval: state.billingInterval,
     subscribedAt: state.subscribedAt,
+    lastPayment: state.lastPayment,
+    paymentHistory: state.paymentHistory,
     usage: state.usage,
     isPro,
-    isEnterprise,
     isProOrHigher,
     isFree,
     canAnalyzeVideo,
