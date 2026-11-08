@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { Activity, Mail, Lock, Eye, EyeOff, Loader2, KeyRound, ExternalLink, Check, AlertCircle } from "lucide-react";
 import GoogleIcon from "@/components/GoogleIcon";
 
+const DEFAULT_GOOGLE_CLIENT_ID = "678354836912-9tsolf2fbp1g5hino8eimnutic0tc2nc.apps.googleusercontent.com";
+
 // ── Decode Real Google JWT (Base64URL) ──
 function parseGoogleJwt(token) {
   try {
@@ -28,16 +30,16 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Google OAuth Config & Setup State
+  // Google OAuth Config State
   const [googleClientId, setGoogleClientId] = useState(
-    () => import.meta.env.VITE_GOOGLE_CLIENT_ID || localStorage.getItem('medicast_google_client_id') || ""
+    () => import.meta.env.VITE_GOOGLE_CLIENT_ID || localStorage.getItem('medicast_google_client_id') || DEFAULT_GOOGLE_CLIENT_ID
   );
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [tempClientId, setTempClientId] = useState("");
-  const [isGsiLoaded, setIsGsiLoaded] = useState(false);
+  const [buttonRendered, setButtonRendered] = useState(false);
   const googleBtnContainerRef = useRef(null);
 
-  // ── Handle OAuth Return Hash (if redirect flow is used) ──
+  // ── Handle OAuth Return Hash (Redirect Flow) ──
   useEffect(() => {
     if (window.location.hash) {
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
@@ -63,79 +65,138 @@ export default function Login() {
 
   // ── Initialize Official Google Identity Services SDK ──
   useEffect(() => {
-    const initGsi = () => {
-      if (!window.google?.accounts?.id || !googleClientId) return;
+    let checkInterval = null;
+
+    const setupGoogle = () => {
+      if (!window.google?.accounts || !googleClientId) return;
 
       try {
-        window.google.accounts.id.initialize({
-          client_id: googleClientId,
-          callback: (response) => {
-            if (response.credential) {
-              const payload = parseGoogleJwt(response.credential);
-              if (payload?.email) {
-                const verifiedUser = {
-                  id: payload.sub || 'g_' + Date.now(),
-                  email: payload.email,
-                  name: payload.name || payload.email.split('@')[0],
-                  avatar_url: payload.picture,
-                  role: 'surgeon',
-                  provider: 'google',
-                  verified: payload.email_verified === true
-                };
-                localStorage.setItem('medicast_auth_user', JSON.stringify(verifiedUser));
-                window.location.href = '/';
+        // 1. Initialize Google ID (One-Tap / JWT)
+        if (window.google.accounts.id) {
+          window.google.accounts.id.initialize({
+            client_id: googleClientId,
+            callback: (response) => {
+              if (response.credential) {
+                const payload = parseGoogleJwt(response.credential);
+                if (payload?.email) {
+                  const verifiedUser = {
+                    id: payload.sub || 'g_' + Date.now(),
+                    email: payload.email,
+                    name: payload.name || payload.email.split('@')[0],
+                    avatar_url: payload.picture,
+                    role: 'surgeon',
+                    provider: 'google',
+                    verified: payload.email_verified === true
+                  };
+                  localStorage.setItem('medicast_auth_user', JSON.stringify(verifiedUser));
+                  window.location.href = '/';
+                }
               }
-            }
-          },
-          auto_select: false,
-          cancel_on_tap_outside: true
-        });
-
-        setIsGsiLoaded(true);
-
-        if (googleBtnContainerRef.current) {
-          googleBtnContainerRef.current.innerHTML = "";
-          window.google.accounts.id.renderButton(googleBtnContainerRef.current, {
-            theme: "outline",
-            size: "large",
-            width: 328,
-            shape: "rectangular",
-            logo_alignment: "left",
-            text: "signin_with"
+            },
+            auto_select: false,
+            cancel_on_tap_outside: true
           });
+
+          if (googleBtnContainerRef.current) {
+            googleBtnContainerRef.current.innerHTML = "";
+            window.google.accounts.id.renderButton(googleBtnContainerRef.current, {
+              theme: "outline",
+              size: "large",
+              width: 328,
+              shape: "rectangular",
+              logo_alignment: "left",
+              text: "signin_with"
+            });
+            setButtonRendered(true);
+          }
         }
       } catch (err) {
-        console.warn("Google Identity Services init error:", err);
+        console.warn("Google Identity Services setup:", err);
       }
     };
 
-    if (window.google?.accounts?.id) {
-      initGsi();
+    if (window.google?.accounts) {
+      setupGoogle();
     } else {
-      const interval = setInterval(() => {
-        if (window.google?.accounts?.id) {
-          clearInterval(interval);
-          initGsi();
+      checkInterval = setInterval(() => {
+        if (window.google?.accounts) {
+          clearInterval(checkInterval);
+          setupGoogle();
         }
-      }, 200);
-      return () => clearInterval(interval);
+      }, 150);
     }
+
+    return () => {
+      if (checkInterval) clearInterval(checkInterval);
+    };
   }, [googleClientId]);
 
-  // ── Trigger Real Google Authentication ──
+  // ── Trigger Real Google Authentication (Popup Flow) ──
   const handleGoogleClick = () => {
-    if (googleClientId && window.google?.accounts?.id) {
+    if (!googleClientId) {
+      setTempClientId(DEFAULT_GOOGLE_CLIENT_ID);
+      setShowConfigModal(true);
+      return;
+    }
+
+    // Attempt Google OAuth 2.0 Token Client (Opens Real Google Login Popup)
+    if (window.google?.accounts?.oauth2) {
+      try {
+        const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: googleClientId,
+          scope: 'email profile openid',
+          callback: async (tokenResponse) => {
+            if (tokenResponse?.access_token) {
+              setLoading(true);
+              try {
+                const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                  headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
+                });
+                const userinfo = await res.json();
+                if (userinfo?.email) {
+                  const verifiedUser = {
+                    id: userinfo.sub || 'g_' + Date.now(),
+                    email: userinfo.email,
+                    name: userinfo.name || userinfo.email.split('@')[0],
+                    avatar_url: userinfo.picture,
+                    role: 'surgeon',
+                    provider: 'google',
+                    verified: userinfo.email_verified === true
+                  };
+                  localStorage.setItem('medicast_auth_user', JSON.stringify(verifiedUser));
+                  window.location.href = '/';
+                  return;
+                }
+              } catch (e) {
+                console.error("Failed to fetch Google profile:", e);
+                setError("Unable to retrieve Google profile. Please try again.");
+              } finally {
+                setLoading(false);
+              }
+            }
+          }
+        });
+        client.requestAccessToken();
+        return;
+      } catch (e) {
+        console.warn("Token client launch:", e);
+      }
+    }
+
+    // Fallback to GSI One-Tap Prompt
+    if (window.google?.accounts?.id) {
       try {
         window.google.accounts.id.prompt();
         return;
       } catch (e) {
-        console.warn("GSI prompt failed:", e);
+        console.warn("GSI prompt launch:", e);
       }
     }
 
-    // If client ID is missing, open configuration modal
-    setTempClientId(googleClientId);
-    setShowConfigModal(true);
+    // Direct OAuth endpoint redirect as last resort
+    const redirectUri = encodeURIComponent(window.location.origin + '/login');
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${redirectUri}&response_type=id_token%20token&scope=openid%20email%20profile&nonce=${Date.now()}`;
+    window.location.href = authUrl;
   };
 
   const handleSaveClientId = (e) => {
@@ -192,12 +253,14 @@ export default function Login() {
           </div>
         )}
 
-        {/* ── Real Google Sign In Button ── */}
-        {googleClientId ? (
+        {/* ── Official Google Sign In Container ── */}
+        <div className="space-y-2">
+          {/* Official Google Identity Services Rendered Button */}
           <div className="w-full flex justify-center min-h-[44px]">
             <div ref={googleBtnContainerRef} className="w-full flex justify-center" />
           </div>
-        ) : (
+
+          {/* Backup Actionable Google Button (always active to trigger real popup) */}
           <button
             type="button"
             onClick={handleGoogleClick}
@@ -205,9 +268,9 @@ export default function Login() {
             className="w-full h-11 flex items-center justify-center gap-3 px-4 rounded-xl border border-stone-300 hover:bg-stone-50 bg-white text-stone-700 font-semibold text-xs sm:text-sm shadow-2xs transition-all active:scale-[0.99]"
           >
             <GoogleIcon className="w-4 h-4 shrink-0" />
-            <span>Sign in with Google</span>
+            <span>{loading ? "Authenticating with Google..." : "Sign in with Google"}</span>
           </button>
-        )}
+        </div>
 
         {/* Clean Divider */}
         <div className="flex items-center gap-3">
@@ -286,21 +349,17 @@ export default function Login() {
         © 2026 MediCast AI • Secure Intraoperative Portal
       </p>
 
-      {/* ── Real Google OAuth Setup Modal ── */}
+      {/* ── Client ID Setup Modal (Optional custom override) ── */}
       {showConfigModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-2xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-stone-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center gap-3 border-b border-stone-100 pb-3">
               <GoogleIcon className="w-5 h-5 shrink-0" />
               <div>
-                <h3 className="text-sm font-bold text-stone-900">Connect Real Google OAuth</h3>
-                <p className="text-[11px] text-stone-500">Google requires an OAuth Client ID for your website domain</p>
+                <h3 className="text-sm font-bold text-stone-900">Google OAuth Client ID</h3>
+                <p className="text-[11px] text-stone-500">Active Google Client ID configured for this domain</p>
               </div>
             </div>
-
-            <p className="text-xs text-stone-600 leading-relaxed">
-              To verify real Google accounts on <strong className="text-stone-800">{window.location.hostname}</strong>, Google requires a free Web Client ID from Google Cloud Console.
-            </p>
 
             <form onSubmit={handleSaveClientId} className="space-y-3">
               <div className="space-y-1">
@@ -311,24 +370,11 @@ export default function Login() {
                   type="text"
                   value={tempClientId}
                   onChange={(e) => setTempClientId(e.target.value)}
-                  placeholder="e.g. 123456789-abcdef.apps.googleusercontent.com"
+                  placeholder="e.g. 678354836912-...apps.googleusercontent.com"
                   className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-mono bg-stone-50 focus:bg-white focus:outline-none focus:border-teal-600"
                   required
                   autoFocus
                 />
-              </div>
-
-              <div className="p-3 rounded-xl bg-teal-50/70 border border-teal-200/80 text-[11px] text-teal-900 space-y-1">
-                <p className="font-semibold flex items-center gap-1.5">
-                  <KeyRound className="w-3.5 h-3.5 text-teal-700" />
-                  <span>Quick Setup (takes 1 minute):</span>
-                </p>
-                <ol className="list-decimal pl-4 space-y-0.5 text-stone-600">
-                  <li>Visit <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="text-teal-700 underline font-semibold inline-flex items-center gap-0.5">Google Cloud Credentials <ExternalLink className="w-2.5 h-2.5" /></a></li>
-                  <li>Click <strong>Create Credentials &gt; OAuth client ID &gt; Web application</strong></li>
-                  <li>Add Authorized Origin: <code className="bg-white px-1 py-0.5 rounded text-[10px] text-stone-800 font-mono border border-stone-200">{window.location.origin}</code></li>
-                  <li>Paste the Client ID above (or set <code className="font-mono text-stone-800">VITE_GOOGLE_CLIENT_ID</code> in Render).</li>
-                </ol>
               </div>
 
               <div className="flex items-center gap-2 pt-2">
@@ -336,14 +382,14 @@ export default function Login() {
                   type="submit"
                   className="flex-1 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors"
                 >
-                  Save & Enable Real Google Sign-In
+                  Save & Update
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowConfigModal(false)}
                   className="px-4 py-2 text-xs text-stone-600 hover:bg-stone-100 rounded-xl transition-colors"
                 >
-                  Cancel
+                  Close
                 </button>
               </div>
             </form>
