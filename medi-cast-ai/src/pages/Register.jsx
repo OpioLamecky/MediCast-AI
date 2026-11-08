@@ -1,7 +1,24 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Activity, Mail, Lock, Eye, EyeOff, Loader2, Check } from "lucide-react";
+import { Activity, Mail, Lock, Eye, EyeOff, Loader2, KeyRound, ExternalLink, Check } from "lucide-react";
 import GoogleIcon from "@/components/GoogleIcon";
+
+function parseGoogleJwt(token) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error('Failed to parse Google JWT:', e);
+    return null;
+  }
+}
 
 export default function Register() {
   const [email, setEmail] = useState("");
@@ -12,36 +29,94 @@ export default function Register() {
   const [error, setError] = useState("");
   const [showConfirmation, setShowConfirmation] = useState(false);
 
-  // Google Account Chooser State
-  const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [customGoogleEmail, setCustomGoogleEmail] = useState("");
-  const [showCustomEmailInput, setShowCustomEmailInput] = useState(false);
+  // Google OAuth Config State
+  const [googleClientId, setGoogleClientId] = useState(
+    () => import.meta.env.VITE_GOOGLE_CLIENT_ID || localStorage.getItem('medicast_google_client_id') || ""
+  );
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [tempClientId, setTempClientId] = useState("");
+  const googleBtnContainerRef = useRef(null);
 
-  // ── Execute Google Registration / Sign In ──
-  const authenticateWithGoogle = (name, userEmail) => {
-    setLoading(true);
-    setShowGoogleModal(false);
+  // ── Initialize Official Google Identity Services SDK ──
+  useEffect(() => {
+    const initGsi = () => {
+      if (!window.google?.accounts?.id || !googleClientId) return;
 
-    const googleUser = {
-      id: 'google_' + Date.now(),
-      email: userEmail,
-      name: name,
-      role: 'surgeon',
-      provider: 'google',
-      avatar_url: 'https://lh3.googleusercontent.com/a/default-user',
-      verified: true
+      try {
+        window.google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: (response) => {
+            if (response.credential) {
+              const payload = parseGoogleJwt(response.credential);
+              if (payload?.email) {
+                const verifiedUser = {
+                  id: payload.sub || 'g_' + Date.now(),
+                  email: payload.email,
+                  name: payload.name || payload.email.split('@')[0],
+                  avatar_url: payload.picture,
+                  role: 'surgeon',
+                  provider: 'google',
+                  verified: payload.email_verified === true
+                };
+                localStorage.setItem('medicast_auth_user', JSON.stringify(verifiedUser));
+                window.location.href = '/';
+              }
+            }
+          },
+          auto_select: false,
+          cancel_on_tap_outside: true
+        });
+
+        if (googleBtnContainerRef.current) {
+          googleBtnContainerRef.current.innerHTML = "";
+          window.google.accounts.id.renderButton(googleBtnContainerRef.current, {
+            theme: "outline",
+            size: "large",
+            width: 328,
+            shape: "rectangular",
+            logo_alignment: "left",
+            text: "signup_with"
+          });
+        }
+      } catch (err) {
+        console.warn("Google Identity Services init error:", err);
+      }
     };
 
-    localStorage.setItem('medicast_auth_user', JSON.stringify(googleUser));
-    window.location.href = "/";
+    if (window.google?.accounts?.id) {
+      initGsi();
+    } else {
+      const interval = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          clearInterval(interval);
+          initGsi();
+        }
+      }, 200);
+      return () => clearInterval(interval);
+    }
+  }, [googleClientId]);
+
+  const handleGoogleClick = () => {
+    if (googleClientId && window.google?.accounts?.id) {
+      try {
+        window.google.accounts.id.prompt();
+        return;
+      } catch (e) {
+        console.warn("GSI prompt failed:", e);
+      }
+    }
+    setTempClientId(googleClientId);
+    setShowConfigModal(true);
   };
 
-  const handleCustomGoogleSubmit = (e) => {
+  const handleSaveClientId = (e) => {
     e.preventDefault();
-    if (!customGoogleEmail) return;
-    const namePart = customGoogleEmail.split('@')[0];
-    const formattedName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
-    authenticateWithGoogle(formattedName, customGoogleEmail);
+    const cleanId = tempClientId.trim();
+    if (!cleanId) return;
+
+    localStorage.setItem('medicast_google_client_id', cleanId);
+    setGoogleClientId(cleanId);
+    setShowConfigModal(false);
   };
 
   // ── Standard Email/Password Registration ──
@@ -76,7 +151,6 @@ export default function Register() {
     setLoading(false);
   };
 
-  // ── Small Confirmation State ──
   if (showConfirmation) {
     return (
       <div className="min-h-screen bg-[#FAF8F5] flex flex-col items-center justify-center p-4">
@@ -104,7 +178,7 @@ export default function Register() {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] flex flex-col items-center justify-center p-4">
-      {/* ── Main Compact Register Card (Exact Same Dimensions as Login) ── */}
+      {/* ── Main Compact Register Card ── */}
       <div className="w-full max-w-[380px] bg-white rounded-2xl shadow-xl border border-stone-200/90 p-6 sm:p-7 space-y-4">
         {/* Brand Header */}
         <div className="text-center space-y-1">
@@ -126,16 +200,22 @@ export default function Register() {
           </div>
         )}
 
-        {/* ── Sign Up with Google Button ── */}
-        <button
-          type="button"
-          onClick={() => setShowGoogleModal(true)}
-          disabled={loading}
-          className="w-full h-11 flex items-center justify-center gap-3 px-4 rounded-xl border border-stone-300 hover:bg-stone-50 bg-white text-stone-700 font-semibold text-xs sm:text-sm shadow-2xs transition-all active:scale-[0.99]"
-        >
-          <GoogleIcon className="w-4 h-4 shrink-0" />
-          <span>{loading ? "Signing up..." : "Sign up with Google"}</span>
-        </button>
+        {/* ── Real Google Sign Up Button ── */}
+        {googleClientId ? (
+          <div className="w-full flex justify-center min-h-[44px]">
+            <div ref={googleBtnContainerRef} className="w-full flex justify-center" />
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={handleGoogleClick}
+            disabled={loading}
+            className="w-full h-11 flex items-center justify-center gap-3 px-4 rounded-xl border border-stone-300 hover:bg-stone-50 bg-white text-stone-700 font-semibold text-xs sm:text-sm shadow-2xs transition-all active:scale-[0.99]"
+          >
+            <GoogleIcon className="w-4 h-4 shrink-0" />
+            <span>Sign up with Google</span>
+          </button>
+        )}
 
         {/* Clean Divider */}
         <div className="flex items-center gap-3">
@@ -226,104 +306,67 @@ export default function Register() {
         © 2026 MediCast AI • Secure Intraoperative Portal
       </p>
 
-      {/* ── Official Google Account Chooser Modal ── */}
-      {showGoogleModal && (
+      {/* ── Real Google OAuth Setup Modal ── */}
+      {showConfigModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-2xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-stone-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-stone-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center gap-3 border-b border-stone-100 pb-3">
               <GoogleIcon className="w-5 h-5 shrink-0" />
               <div>
-                <h3 className="text-sm font-bold text-stone-900">Sign up with Google</h3>
-                <p className="text-[11px] text-stone-500">Choose an account to continue to MediCast AI</p>
+                <h3 className="text-sm font-bold text-stone-900">Connect Real Google OAuth</h3>
+                <p className="text-[11px] text-stone-500">Google requires an OAuth Client ID for your website domain</p>
               </div>
             </div>
 
-            {/* Account List */}
-            <div className="space-y-2">
-              {/* Account 1: Lameck Opio */}
-              <button
-                type="button"
-                onClick={() => authenticateWithGoogle('Lameck Opio', 'opiolamecky@gmail.com')}
-                className="w-full flex items-center gap-3 p-3 rounded-xl border border-stone-200 hover:border-teal-400 hover:bg-teal-50/40 text-left transition-all group"
-              >
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-teal-600 to-teal-800 text-white font-bold flex items-center justify-center text-sm shadow-xs">
-                  LO
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-stone-900 group-hover:text-teal-900 truncate">
-                    Lameck Opio
-                  </p>
-                  <p className="text-[11px] text-stone-500 truncate">
-                    opiolamecky@gmail.com
-                  </p>
-                </div>
-                <div className="w-5 h-5 rounded-full bg-teal-100 text-teal-800 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Check className="w-3 h-3" />
-                </div>
-              </button>
+            <p className="text-xs text-stone-600 leading-relaxed">
+              To verify real Google accounts on <strong className="text-stone-800">{window.location.hostname}</strong>, Google requires a free Web Client ID from Google Cloud Console.
+            </p>
 
-              {/* Account 2: Custom Google Account */}
-              {showCustomEmailInput ? (
-                <form onSubmit={handleCustomGoogleSubmit} className="p-3 rounded-xl border border-teal-300 bg-stone-50/60 space-y-2">
-                  <label className="block text-[11px] font-semibold text-stone-700">
-                    Enter Google Email
-                  </label>
-                  <input
-                    type="email"
-                    value={customGoogleEmail}
-                    onChange={(e) => setCustomGoogleEmail(e.target.value)}
-                    placeholder="doctor@gmail.com"
-                    className="w-full px-3 py-1.5 text-xs bg-white rounded-lg border border-stone-300 focus:outline-none focus:border-teal-600"
-                    autoFocus
-                    required
-                  />
-                  <div className="flex items-center gap-2 pt-1">
-                    <button
-                      type="submit"
-                      className="flex-1 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-lg shadow-xs"
-                    >
-                      Sign Up
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowCustomEmailInput(false)}
-                      className="px-3 py-1.5 text-xs text-stone-600 hover:bg-stone-200/60 rounded-lg"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              ) : (
+            <form onSubmit={handleSaveClientId} className="space-y-3">
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-stone-700">
+                  Google OAuth Client ID
+                </label>
+                <input
+                  type="text"
+                  value={tempClientId}
+                  onChange={(e) => setTempClientId(e.target.value)}
+                  placeholder="e.g. 123456789-abcdef.apps.googleusercontent.com"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-mono bg-stone-50 focus:bg-white focus:outline-none focus:border-teal-600"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-teal-50/70 border border-teal-200/80 text-[11px] text-teal-900 space-y-1">
+                <p className="font-semibold flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5 text-teal-700" />
+                  <span>Quick Setup (takes 1 minute):</span>
+                </p>
+                <ol className="list-decimal pl-4 space-y-0.5 text-stone-600">
+                  <li>Visit <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="text-teal-700 underline font-semibold inline-flex items-center gap-0.5">Google Cloud Credentials <ExternalLink className="w-2.5 h-2.5" /></a></li>
+                  <li>Click <strong>Create Credentials &gt; OAuth client ID &gt; Web application</strong></li>
+                  <li>Add Authorized Origin: <code className="bg-white px-1 py-0.5 rounded text-[10px] text-stone-800 font-mono border border-stone-200">{window.location.origin}</code></li>
+                  <li>Paste the Client ID above (or set <code className="font-mono text-stone-800">VITE_GOOGLE_CLIENT_ID</code> in Render).</li>
+                </ol>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="submit"
+                  className="flex-1 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors"
+                >
+                  Save & Enable Real Google Sign-Up
+                </button>
                 <button
                   type="button"
-                  onClick={() => setShowCustomEmailInput(true)}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl border border-dashed border-stone-300 hover:bg-stone-50 text-left transition-colors"
+                  onClick={() => setShowConfigModal(false)}
+                  className="px-4 py-2 text-xs text-stone-600 hover:bg-stone-100 rounded-xl transition-colors"
                 >
-                  <div className="w-9 h-9 rounded-full border border-stone-300 flex items-center justify-center text-stone-500 font-bold text-base">
-                    +
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-stone-700">Use another Google account</p>
-                    <p className="text-[11px] text-stone-400">Sign up with different email</p>
-                  </div>
+                  Cancel
                 </button>
-              )}
-            </div>
-
-            {/* Cancel Button */}
-            <div className="pt-2 border-t border-stone-100 text-right">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowGoogleModal(false);
-                  setShowCustomEmailInput(false);
-                }}
-                className="text-xs text-stone-500 hover:text-stone-800 font-medium px-3 py-1.5 rounded-lg hover:bg-stone-100 transition-colors"
-              >
-                Close
-              </button>
-            </div>
+              </div>
+            </form>
           </div>
         </div>
       )}
