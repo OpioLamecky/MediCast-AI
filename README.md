@@ -12,8 +12,7 @@
 
 ## 🌐 Live Deployment
 
-* **Production URL**: [https://medicast-ai-surgical-inteligence2.onrender.com](https://medicast-ai-surgical-inteligence2.onrender.com)
-* **Backend API**: [https://medicast-backend.onrender.com](https://medicast-backend.onrender.com)
+* **Production Application**: [https://medicast-ai-surgical-inteligence2.onrender.com](https://medicast-ai-surgical-inteligence2.onrender.com)
 
 ---
 
@@ -33,8 +32,7 @@
 * **Accredited Word Report Export (`.docx`)**: Generates formal clinical audit reports ready for institutional Morbidity & Mortality (M&M) reviews, credentialing, and surgical registries.
 
 ### 3. 💬 Surgical AI Co-Pilot & Assistant (`/assistant`)
-* Specialized clinical surgical chatbot powered by fine-tuned multi-provider models (Groq Llama 3.3 70B, Qwen, Gemini 2.0 Flash).
-* Provides procedural guidance, risk mitigation checklists, anatomical landmark verification, and case-specific surgical literature retrieval.
+* Specialized clinical surgical chatbot providing procedural guidance, risk mitigation checklists, anatomical landmark verification, and case-specific surgical literature retrieval.
 * Persistent chat discussions with individual conversation history and thread management.
 
 ### 4. ⚖️ Procedure Comparison Studio (`/compare`)
@@ -59,10 +57,10 @@
 | Layer | Technologies |
 | :--- | :--- |
 | **Frontend** | React 18, Vite, Tailwind CSS, Lucide React, Radix UI Primitives, KaTeX, Supabase JS |
-| **Inference Backend** | FastAPI (Python 3.10+), Uvicorn, LiteLLM, Groq Vision, Gemini 2.0 Flash, Pillow, AsyncPG, Redis |
-| **Payment Gateway** | MTN Mobile Money Uganda (Direct API / Flutterwave MoMo Collection) |
+| **Inference Backend** | FastAPI (Python 3.10+), Uvicorn, Multimodal Surgical Vision Pipeline, Pillow, AsyncPG, Redis |
+| **Payment Gateway** | MTN Mobile Money Uganda (Direct USSD / Merchant Collection) |
 | **Storage & Database**| Supabase PostgreSQL, Supabase Storage (Surgical Videos Bucket) |
-| **Deployment** | Render Cloud (`render.yaml` Blueprint for frontend static web + backend API) |
+| **Deployment** | Render Cloud (`render.yaml` Blueprint for frontend static web + backend service) |
 
 ---
 
@@ -75,9 +73,9 @@ medicast/
 │   │   ├── ai_assistant.py          # Multimodal Surgical Assistant Router
 │   │   ├── analyze.py               # Frame & Video Vision Analysis Engine
 │   │   ├── database.py              # PostgreSQL database & session persistence
-│   │   ├── inference.py             # Groq / Gemini / LiteLLM Provider Chain
+│   │   ├── inference.py             # Multimodal Vision Provider Chain
 │   │   ├── main.py                  # FastAPI Application Entrypoint & CORS
-│   │   ├── payment.py               # MTN Mobile Money USSD Push & Verification API
+│   │   ├── payment.py               # MTN Mobile Money USSD Push & Verification
 │   │   ├── telemetry.py             # Intraoperative Telemetry & Kinematics
 │   │   └── websocket.py             # Real-time OR WebSocket Streaming
 │   ├── requirements.txt             # Python Dependencies
@@ -140,39 +138,11 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 pip install -r requirements.txt
 
-# Create your .env file
+# Create your .env file from the template
 cp .env.example .env
 
-# Run FastAPI server
+# Run server
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-API Documentation will be accessible at `http://localhost:8000/docs`.
-
----
-
-## 🔐 Environment Variables
-
-### Frontend (`medi-cast-ai/.env`)
-```env
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-VITE_GROQ_API_KEY=gsk_your_groq_api_key
-VITE_API_URL=https://medicast-backend.onrender.com
-```
-
-### Backend (`inference_server/.env`)
-```env
-PORT=8000
-GROQ_API_KEY=gsk_your_groq_api_key
-GEMINI_API_KEY=your_gemini_api_key
-
-# MTN Mobile Money Collection Gateway
-FLW_SECRET_KEY=FLWSECK_your_flutterwave_secret_key
-# or MTN MoMo Developer API
-MTN_MOMO_SUBSCRIPTION_KEY=your_momo_primary_key
-MTN_MOMO_API_USER=your_momo_api_user_uuid
-MTN_MOMO_API_KEY=your_momo_api_key
-MTN_MOMO_TARGET_ENV=live
 ```
 
 ---
