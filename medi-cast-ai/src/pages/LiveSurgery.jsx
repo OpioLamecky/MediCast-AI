@@ -251,6 +251,7 @@ export default function LiveSurgery() {
   const elapsedRef = useRef(0);
   const virtualAnimRef = useRef(null);
   const isConfirmedSurgicalRef = useRef(false);
+  const cameraManuallyStoppedRef = useRef(false);
 
   // Accumulators for final post-operative report synthesis
   const sessionLogRef = useRef({
@@ -325,6 +326,7 @@ export default function LiveSurgery() {
       cancelAnimationFrame(virtualAnimRef.current);
       virtualAnimRef.current = null;
     }
+    cameraManuallyStoppedRef.current = false;
     setIsVirtualScope(false);
     setCameraStatus('initializing');
     setCameraError('');
@@ -404,6 +406,7 @@ export default function LiveSurgery() {
   // ── Start Virtual Surgical Endoscope Stream (Fallback when PC Camera is unavailable/locked) ──
   const startVirtualScopeStream = useCallback(() => {
     stopCameraStream();
+    cameraManuallyStoppedRef.current = false;
     const simCanvas = document.createElement('canvas');
     simCanvas.width = 960;
     simCanvas.height = 540;
@@ -478,7 +481,7 @@ export default function LiveSurgery() {
       if (cancelled) return;
       permStatus = status;
       status.onchange = () => {
-        if (status.state === 'granted' && mode === 'live') {
+        if (status.state === 'granted' && mode === 'live' && !cameraManuallyStoppedRef.current) {
           startCameraStream();
         }
       };
@@ -678,6 +681,7 @@ export default function LiveSurgery() {
 
     isAnalyzingRef.current = true;
     setIsScanningFrame(true);
+    const activeScanSessionId = sessionIdRef.current;
 
     try {
       const metrics = extractFrameOpticalMetrics(videoEl, canvasEl, prevGrayRef);
@@ -693,7 +697,7 @@ export default function LiveSurgery() {
         elapsedSeconds: elapsedRef.current,
         frameIndex: frameCounterRef.current,
         surgeonName: caseMeta.surgeon_name || 'Attending Surgeon',
-        sessionId: sessionIdRef.current,
+        sessionId: activeScanSessionId,
         isVirtualScope: mode === 'live' && isVirtualScope,
         frameMetrics: metrics
           ? {
@@ -704,6 +708,11 @@ export default function LiveSurgery() {
             }
           : null
       });
+
+      // Discard stale scan if the user stopped the live surgery or turned off the camera while awaiting AI
+      if (sessionIdRef.current !== activeScanSessionId || cameraManuallyStoppedRef.current) {
+        return;
+      }
 
       isConfirmedSurgicalRef.current = Boolean(result.is_surgical_scene);
       setLiveTelemetry(result);
@@ -861,6 +870,77 @@ export default function LiveSurgery() {
       setIsPaused(false);
       toast({ title: 'Live Recording Resumed' });
     }
+  };
+
+  // ── Immediately Stop Active Live Surgery Recording (Without Generating Report) ──
+  const stopLiveSurgeryWithoutReport = async () => {
+    sessionIdRef.current = `stopped_${Date.now()}`;
+    const rec = mediaRecorderRef.current;
+    const mimeType = rec?.mimeType || 'video/webm';
+
+    if (rec && rec.state !== 'inactive') {
+      try {
+        await new Promise((resolve) => {
+          rec.onstop = resolve;
+          rec.stop();
+        });
+      } catch {
+        // Ignore if recorder already stopped
+      }
+    }
+
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    setIsRecording(false);
+    setIsPaused(false);
+    isConfirmedSurgicalRef.current = false;
+    setActiveBannerAlert(null);
+    setLiveTelemetry(createStandbyTelemetry(procedureType));
+
+    if (recordedChunksRef.current.length > 0) {
+      const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+      const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+      if (blob.size > 0) {
+        const blobUrl = URL.createObjectURL(blob);
+        setRecordedBlobUrl(blobUrl);
+        setRecordedFile(new File([blob], `live_surgery_stopped_${Date.now()}.${ext}`, { type: mimeType }));
+      }
+    }
+
+    setUnverifiedSessionNotice(
+      'Live surgery session was stopped by user. Real-time AI monitoring is paused — you can download any captured video clip, restart recording, or turn off your PC camera.'
+    );
+
+    toast({
+      title: 'Live Surgery Stopped',
+      description: 'Live surgery recording and AI monitoring have been stopped.'
+    });
+  };
+
+  // ── Completely Stop Live Surgery & Turn Off PC Camera Stream ──
+  const handleStopLiveCamera = () => {
+    sessionIdRef.current = `camera_off_${Date.now()}`;
+    cameraManuallyStoppedRef.current = true;
+    stopCameraStream();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    isConfirmedSurgicalRef.current = false;
+    setActiveBannerAlert(null);
+    setElapsedSeconds(0);
+    setOpticalMetrics({ brightness: 0, contrastScore: 0, rednessRatio: 0, motionScore: 0 });
+    setLiveTelemetry({
+      ...createStandbyTelemetry(procedureType),
+      phase: 'Live Surgery Stream Stopped',
+      scene_observed:
+        'Live surgery camera stream is turned off. Click "Turn On PC Camera" whenever you want to resume live surgery monitoring.'
+    });
+    toast({
+      title: 'Live Camera & AI Stream Stopped',
+      description: 'Your PC camera has been turned off.'
+    });
   };
 
   // ── Stop Live Recording, Compile Video & Save Clinical Audit Report ──
@@ -1149,9 +1229,25 @@ export default function LiveSurgery() {
               {mode === 'live' ? 'Live Surgical Vision & Camera Stream' : 'Pre-Recorded Surgical Video Studio'}
             </h1>
             {mode === 'live' ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
-                <span className={`w-2 h-2 rounded-full ${cameraStatus === 'ready' ? 'bg-red-600 animate-ping' : 'bg-stone-400'}`} />
-                {isRecording ? 'RECORDING LIVE SURGERY' : cameraStatus === 'ready' ? 'PC CAMERA ACTIVE' : 'CAMERA STANDBY'}
+              <span
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
+                  cameraStatus === 'off'
+                    ? 'bg-stone-100 text-stone-600 border-stone-300'
+                    : 'bg-red-50 text-red-700 border-red-200'
+                }`}
+              >
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    cameraStatus === 'ready' ? 'bg-red-600 animate-ping' : 'bg-stone-400'
+                  }`}
+                />
+                {isRecording
+                  ? 'RECORDING LIVE SURGERY'
+                  : cameraStatus === 'ready'
+                    ? 'PC CAMERA ACTIVE'
+                    : cameraStatus === 'off'
+                      ? 'LIVE SURGERY STOPPED'
+                      : 'CAMERA STANDBY'}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-teal-50 text-teal-800 border border-teal-200">
@@ -1364,7 +1460,9 @@ export default function LiveSurgery() {
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-bold text-amber-950 font-heading">
-                No Surgical Scene Verified — Clinical Scoring Skipped
+                {unverifiedSessionNotice.includes('stopped by user')
+                  ? 'Live Surgery Session Stopped'
+                  : 'No Surgical Scene Verified — Clinical Scoring Skipped'}
               </h3>
               <p className="text-xs text-amber-900 mt-0.5 leading-relaxed">{unverifiedSessionNotice}</p>
             </div>
@@ -1479,6 +1577,49 @@ export default function LiveSurgery() {
                     <Loader2 className="w-10 h-10 text-teal-400 animate-spin mb-3" />
                     <p className="text-sm font-semibold">Activating PC Surgical Camera Stream...</p>
                     <p className="text-xs text-slate-400 mt-1">Grant browser camera permission if prompted</p>
+                  </div>
+                )}
+
+                {/* Camera Manually Stopped Overlay */}
+                {cameraStatus === 'off' && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-slate-950/95 p-6 text-center max-w-md mx-auto">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-800/90 border border-slate-700 text-slate-300 flex items-center justify-center mb-3">
+                      <CameraOff className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-sm sm:text-base font-semibold">Live Surgery Stream Stopped</h3>
+                    <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+                      Your PC camera and real-time surgical AI monitoring are currently turned off. You can restart the live camera anytime or continue with pre-recorded videos.
+                    </p>
+                    <div className="flex items-center gap-2 mt-4 flex-wrap justify-center">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => startCameraStream()}
+                        className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold gap-1.5"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        <span>Turn On PC Camera</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={startVirtualScopeStream}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs gap-1.5"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Virtual Surgical Scope</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => switchOperatingMode('prerecorded')}
+                        className="border-slate-600 bg-slate-900 text-slate-200 hover:bg-slate-800 text-xs gap-1.5"
+                      >
+                        <Video className="w-3.5 h-3.5" />
+                        <span>Pre-Recorded Videos</span>
+                      </Button>
+                    </div>
                   </div>
                 )}
 
@@ -1705,16 +1846,40 @@ export default function LiveSurgery() {
             {mode === 'live' ? (
               <>
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  {!isRecording ? (
+                  {cameraStatus === 'off' ? (
                     <Button
                       type="button"
-                      onClick={startLiveRecording}
-                      disabled={cameraStatus !== 'ready' || isSavingSession}
-                      className="bg-red-600 hover:bg-red-700 text-white font-semibold shadow-sm gap-2 px-5"
+                      onClick={() => startCameraStream()}
+                      className="bg-teal-600 hover:bg-teal-700 text-white font-semibold shadow-sm gap-2 px-5"
                     >
                       <Camera className="w-4 h-4" />
-                      <span>Start Recording Live Surgery</span>
+                      <span>Turn On PC Camera</span>
                     </Button>
+                  ) : !isRecording ? (
+                    <>
+                      <Button
+                        type="button"
+                        onClick={startLiveRecording}
+                        disabled={cameraStatus !== 'ready' || isSavingSession}
+                        className="bg-red-600 hover:bg-red-700 text-white font-semibold shadow-sm gap-2 px-5"
+                      >
+                        <Camera className="w-4 h-4" />
+                        <span>Start Recording Live Surgery</span>
+                      </Button>
+
+                      {cameraStatus === 'ready' && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleStopLiveCamera}
+                          className="border-red-200 bg-red-50/70 text-red-700 hover:bg-red-100 font-semibold gap-1.5 text-xs sm:text-sm"
+                          title="Stop live surgery stream and turn off PC camera"
+                        >
+                          <CameraOff className="w-4 h-4" />
+                          <span>Stop Live Surgery</span>
+                        </Button>
+                      )}
+                    </>
                   ) : (
                     <>
                       <Button
@@ -1729,9 +1894,21 @@ export default function LiveSurgery() {
 
                       <Button
                         type="button"
+                        variant="outline"
+                        onClick={stopLiveSurgeryWithoutReport}
+                        disabled={isSavingSession}
+                        className="border-red-300 bg-red-50 text-red-700 hover:bg-red-100 font-semibold gap-1.5"
+                        title="Stop recording live surgery immediately without generating a report"
+                      >
+                        <Square className="w-3.5 h-3.5 fill-current" />
+                        <span>Stop Live Surgery</span>
+                      </Button>
+
+                      <Button
+                        type="button"
                         onClick={stopAndFinalizeLiveSurgery}
                         disabled={isSavingSession}
-                        className="bg-teal-700 hover:bg-teal-800 text-white font-semibold shadow-sm gap-1.5 px-5"
+                        className="bg-teal-700 hover:bg-teal-800 text-white font-semibold shadow-sm gap-1.5 px-4"
                       >
                         {isSavingSession ? (
                           <>
@@ -1740,10 +1917,23 @@ export default function LiveSurgery() {
                           </>
                         ) : (
                           <>
-                            <Square className="w-3.5 h-3.5 fill-current" />
-                            <span>End Surgery & Generate Report</span>
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>End & Generate Report</span>
                           </>
                         )}
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleStopLiveCamera}
+                        disabled={isSavingSession}
+                        className="border-stone-300 text-stone-700 hover:bg-stone-100 text-xs gap-1.5"
+                        title="Stop recording and turn off PC camera hardware"
+                      >
+                        <CameraOff className="w-3.5 h-3.5 text-red-600" />
+                        <span>Turn Off Camera</span>
                       </Button>
                     </>
                   )}
