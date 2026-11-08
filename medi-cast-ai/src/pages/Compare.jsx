@@ -160,7 +160,7 @@ export default function Compare() {
   }
 
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full max-w-full overflow-x-hidden">
       <div className="flex items-center gap-3 mb-6">
         <Link to="/" className="text-slate-400 hover:text-slate-600">
           <ArrowLeft className="w-5 h-5" />

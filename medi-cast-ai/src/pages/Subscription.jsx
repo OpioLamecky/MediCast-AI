@@ -50,7 +50,7 @@ export default function Subscription() {
   const proTier = SUBSCRIPTION_TIERS.pro;
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] p-4 sm:p-6 md:p-8 max-w-6xl mx-auto space-y-8">
+    <div className="min-h-screen bg-[#FAF8F5] p-4 sm:p-6 md:p-8 max-w-6xl mx-auto space-y-8 w-full max-w-full overflow-x-hidden">
       {/* ── Top Page Header ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-stone-200/80">
         <div>

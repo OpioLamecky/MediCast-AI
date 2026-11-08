@@ -216,7 +216,7 @@ export default function AnalysisDetail() {
   const displayVideoUrl = localUrl || video.video_url;
 
   return (
-    <div className="p-6 md:p-8 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-6 md:p-8 max-w-5xl mx-auto w-full max-w-full overflow-x-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
         <div className="flex items-center gap-3 flex-1 min-w-0">

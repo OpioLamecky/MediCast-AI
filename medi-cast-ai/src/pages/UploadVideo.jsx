@@ -94,7 +94,7 @@ export default function UploadVideo() {
   };
 
   return (
-    <div className="p-6 md:p-8 max-w-2xl mx-auto">
+    <div className="p-4 sm:p-6 md:p-8 max-w-2xl mx-auto w-full max-w-full overflow-x-hidden">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 font-heading">Upload Pre-Recorded Surgery</h1>

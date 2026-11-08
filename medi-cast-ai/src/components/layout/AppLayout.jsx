@@ -76,9 +76,9 @@ export default function AppLayout() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-[#FAF8F5] w-full max-w-full overflow-x-hidden flex flex-col md:flex-row">
+    <div className="min-h-screen bg-[#FAF8F5] w-full max-w-full overflow-x-hidden relative">
       {/* ── Left Sidebar (Dashboard Navigation & Integrated Recent Chats) ── */}
-      <aside className="w-64 bg-white border-r border-stone-200/80 flex flex-col fixed h-full z-30 max-md:hidden">
+      <aside className="w-64 bg-white border-r border-stone-200/80 flex flex-col fixed inset-y-0 left-0 h-full z-30 max-md:hidden">
         {/* Brand Header */}
         <div className="p-5 border-b border-stone-100 shrink-0">
           <div className="flex items-center gap-3">
@@ -254,10 +254,12 @@ export default function AppLayout() {
         })}
       </div>
 
-      {/* Main Content (Spans seamlessly without horizontal scrolling) */}
-      <main className="flex-1 min-w-0 md:ml-64 pt-14 md:pt-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0 w-full max-w-full overflow-x-hidden">
-        <Outlet />
-      </main>
+      {/* Main Content Area (md:pl-64 guarantees perfect 100% width with ZERO horizontal scroll) */}
+      <div className="md:pl-64 flex flex-col min-h-screen w-full max-w-full overflow-x-hidden">
+        <main className="flex-1 w-full max-w-full overflow-x-hidden pt-14 md:pt-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
+          <Outlet />
+        </main>
+      </div>
 
       {/* Global Subscription & Plan Upgrade Dialog */}
       <SubscriptionModal />

@@ -1223,7 +1223,7 @@ export default function LiveSurgery() {
   const currentRiskStyle = severityStyles[liveTelemetry.risk_level] || severityStyles.low;
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] p-4 sm:p-6 md:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-[#FAF8F5] p-4 sm:p-6 md:p-8 max-w-7xl mx-auto space-y-6 w-full max-w-full overflow-x-hidden">
       {/* Hidden offscreen canvas for <1ms optical telemetry & frame capture */}
       <canvas ref={hiddenCanvasRef} className="hidden" />
 
