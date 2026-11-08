@@ -14,11 +14,12 @@ import {
   RefreshCw,
   CheckCircle2,
   Clock,
-  Receipt
+  Receipt,
+  Building2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSubscription } from '@/lib/SubscriptionContext';
-import { SUBSCRIPTION_TIERS, formatUGX, FAQ_ITEMS } from '@/lib/subscriptionPlans';
+import { SUBSCRIPTION_TIERS, formatUGX, FAQ_ITEMS, MEDICAST_PAYMENT_CONFIG } from '@/lib/subscriptionPlans';
 import { Progress } from '@/components/ui/progress';
 
 export default function Subscription() {
@@ -92,7 +93,7 @@ export default function Subscription() {
             }`}
           >
             <span>Annual (UGX 780,000)</span>
-            <span className="px-2 py-0.5 rounded-full bg-[#FFCC00] text-black text-[10px] font-bold">
+            <span className="px-2 py-0.5 rounded-full bg-teal-600 text-white text-[10px] font-bold">
               SAVE 25%
             </span>
           </button>
@@ -106,7 +107,7 @@ export default function Subscription() {
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-teal-700 uppercase tracking-wider">Active Plan Status</span>
               {lastPayment && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FFCC00] text-black">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-900 border border-teal-200">
                   Paid via MTN MoMo
                 </span>
               )}
@@ -138,18 +139,16 @@ export default function Subscription() {
             </div>
             <Progress value={videoPercent} className="h-2 bg-stone-200" />
             <p className="text-[11px] text-stone-500">
-              {isProOrHigher
-                ? `${videoUsed} surgical videos analyzed this month`
-                : `${Math.max(0, (plan.limits.videosPerMonth || 3) - videoUsed)} analyses remaining this month`}
+              {isProOrHigher ? 'Unlimited intraoperative surgical reviews' : `${Math.max(0, (plan.limits.videosPerMonth || 3) - videoUsed)} analyses remaining this month`}
             </p>
           </div>
 
-          {/* AI Assistant Queries Meter */}
+          {/* AI Assistant Questions Meter */}
           <div className="p-4 rounded-2xl bg-stone-50/70 border border-stone-200/80 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-stone-600 flex items-center gap-1.5">
-                <MessageSquare className="w-4 h-4 text-blue-600" />
-                AI Assistant Queries
+                <MessageSquare className="w-4 h-4 text-teal-600" />
+                AI Assistant
               </span>
               <span className="text-xs font-bold text-stone-900">
                 {isProOrHigher ? 'Unlimited' : `${aiUsed} / ${aiLimit}`}
@@ -157,35 +156,33 @@ export default function Subscription() {
             </div>
             <Progress value={aiPercent} className="h-2 bg-stone-200" />
             <p className="text-[11px] text-stone-500">
-              {isProOrHigher
-                ? `${aiUsed} queries sent today`
-                : `${Math.max(0, (plan.limits.aiQueriesPerDay || 10) - aiUsed)} queries remaining today`}
+              {isProOrHigher ? 'Continuous surgical queries & risk reasoning' : `${Math.max(0, (plan.limits.aiQueriesPerDay || 10) - aiUsed)} queries remaining today`}
             </p>
           </div>
 
-          {/* Live PC Camera OR Stream Access */}
-          <div className="p-4 rounded-2xl bg-stone-50/70 border border-stone-200/80 space-y-2.5">
+          {/* Live PC Surgery Streaming Feature Card */}
+          <div className="p-4 rounded-2xl bg-stone-50/70 border border-stone-200/80 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-stone-600 flex items-center gap-1.5">
-                <Radio className="w-4 h-4 text-red-500" />
-                Live Camera Stream
+                <Radio className="w-4 h-4 text-rose-600" />
+                Live OR Stream
               </span>
               <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
                 isProOrHigher ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
               }`}>
-                {isProOrHigher ? 'UNLIMITED OR' : 'PREVIEW TRIAL'}
+                {isProOrHigher ? 'UNLIMITED' : '1 TRIAL'}
               </span>
             </div>
             <p className="text-xs text-stone-700 font-medium">
-              {isProOrHigher ? 'Full continuous streaming & hazard alerts' : '1 session trial for testing PC camera'}
+              {isProOrHigher ? 'Continuous PC camera / laparoscope stream' : 'Preview trial session available'}
             </p>
             <p className="text-[11px] text-stone-500">
-              {isProOrHigher ? 'Active across all surgical procedures' : 'Upgrade for continuous intraoperative watch'}
+              {isProOrHigher ? 'Full hazard alerts & real-time telemetry' : 'Upgrade for continuous intraoperative streaming'}
             </p>
           </div>
 
-          {/* Clinical Word Reports (.docx) */}
-          <div className="p-4 rounded-2xl bg-stone-50/70 border border-stone-200/80 space-y-2.5">
+          {/* Clinical Word Export Feature Card */}
+          <div className="p-4 rounded-2xl bg-stone-50/70 border border-stone-200/80 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-stone-600 flex items-center gap-1.5">
                 <FileText className="w-4 h-4 text-indigo-600" />
@@ -269,11 +266,11 @@ export default function Subscription() {
             </div>
           </div>
 
-          {/* Card 2: Pro Surgeon (MTN Mobile Money UGX) */}
-          <div className="rounded-3xl border-2 border-stone-900 bg-gradient-to-b from-stone-900 via-stone-900 to-stone-950 text-white p-6 sm:p-7 flex flex-col justify-between shadow-xl relative">
-            <div className="absolute -top-3.5 right-6 bg-[#FFCC00] text-black text-[11px] font-extrabold px-3 py-0.5 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5" />
-              Recommended for Surgeons
+          {/* Card 2: Pro Surgeon (MediCast AI Surgical Teal & Slate Identity) */}
+          <div className="rounded-3xl border-2 border-teal-600 bg-gradient-to-b from-slate-900 via-teal-950 to-slate-950 text-white p-6 sm:p-7 flex flex-col justify-between shadow-xl relative">
+            <div className="absolute -top-3.5 right-6 bg-teal-600 text-white text-[11px] font-bold px-3 py-0.5 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1.5 border border-teal-400/40">
+              <Sparkles className="w-3.5 h-3.5 text-teal-200" />
+              <span>Recommended for Surgeons</span>
             </div>
 
             <div>
@@ -285,35 +282,44 @@ export default function Subscription() {
                       MTN MoMo
                     </span>
                   </div>
-                  <p className="text-xs text-stone-300 mt-0.5">{proTier.description}</p>
+                  <p className="text-xs text-teal-100/80 mt-0.5">{proTier.description}</p>
                 </div>
               </div>
 
               {/* Price in UGX */}
               <div className="my-5">
                 <div className="flex items-baseline gap-1.5">
-                  <span className="text-3xl sm:text-4xl font-extrabold text-[#FFCC00] font-heading">
+                  <span className="text-3xl sm:text-4xl font-extrabold text-teal-300 font-heading">
                     {interval === 'annual' ? formatUGX(proTier.priceAnnualMonthlyUGX) : formatUGX(proTier.priceMonthlyUGX)}
                   </span>
-                  <span className="text-xs text-stone-400 font-medium">/ month</span>
+                  <span className="text-xs text-teal-200/80 font-medium">/ month</span>
                 </div>
                 {interval === 'annual' ? (
-                  <p className="text-[11px] text-[#FFCC00] font-medium mt-1">
+                  <p className="text-[11px] text-teal-300 font-medium mt-1">
                     Billed annually ({formatUGX(proTier.priceAnnualMonthlyUGX * 12)} / year) • Save 25%
                   </p>
                 ) : (
-                  <p className="text-[11px] text-stone-400 font-medium mt-1">
+                  <p className="text-[11px] text-teal-200/70 font-medium mt-1">
                     Billed monthly in UGX via MTN Mobile Money
                   </p>
                 )}
               </div>
 
+              {/* Receiver Info Strip */}
+              <div className="p-2.5 rounded-xl bg-teal-900/60 border border-teal-500/30 text-[11px] text-teal-100 mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-teal-300 shrink-0" />
+                  <span>To: <strong>{MEDICAST_PAYMENT_CONFIG.accountName}</strong> c/o {MEDICAST_PAYMENT_CONFIG.recipientName}</span>
+                </div>
+                <span className="font-mono font-bold text-teal-200">{MEDICAST_PAYMENT_CONFIG.recipientPhone}</span>
+              </div>
+
               {/* Feature Checklist */}
-              <div className="space-y-2.5 pt-4 border-t border-stone-800 text-stone-200">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-stone-400">Everything Unlocked:</p>
+              <div className="space-y-2.5 pt-4 border-t border-teal-800/60 text-stone-200">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-teal-300">Everything Unlocked:</p>
                 {proTier.features.map((feat, idx) => (
-                  <div key={idx} className="flex items-start gap-2 text-xs text-stone-200">
-                    <Check className="w-4 h-4 text-[#FFCC00] shrink-0 mt-0.5" />
+                  <div key={idx} className="flex items-start gap-2 text-xs text-stone-100">
+                    <Check className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
                     <span>{feat}</span>
                   </div>
                 ))}
@@ -321,17 +327,17 @@ export default function Subscription() {
             </div>
 
             {/* Action Button: Opens MTN MoMo Modal */}
-            <div className="mt-8 pt-4 border-t border-stone-800">
+            <div className="mt-8 pt-4 border-t border-teal-800/60">
               {planId === 'pro' ? (
                 <div className="space-y-2">
-                  <Button disabled className="w-full bg-stone-800 text-emerald-400 cursor-default font-semibold text-xs sm:text-sm">
-                    <CheckCircle2 className="w-4 h-4 mr-1.5 text-emerald-400" />
+                  <Button disabled className="w-full bg-teal-950 text-teal-300 cursor-default font-semibold text-xs sm:text-sm border border-teal-700/60">
+                    <CheckCircle2 className="w-4 h-4 mr-1.5 text-teal-400" />
                     Pro Plan Active via MTN MoMo
                   </Button>
                   <Button
                     onClick={() => openUpgradeModal('Renew or Switch MoMo Number')}
                     variant="outline"
-                    className="w-full border-stone-700 bg-stone-800/60 hover:bg-stone-800 text-stone-300 text-xs h-8"
+                    className="w-full border-teal-700/60 bg-teal-900/40 hover:bg-teal-900 text-teal-200 text-xs h-8"
                   >
                     Change MTN Phone or Renew
                   </Button>
@@ -339,7 +345,7 @@ export default function Subscription() {
               ) : (
                 <Button
                   onClick={() => openUpgradeModal('Subscription Page')}
-                  className="w-full h-11 bg-[#FFCC00] hover:bg-[#E6B800] text-black font-extrabold text-xs sm:text-sm shadow-md gap-2"
+                  className="w-full h-11 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs sm:text-sm shadow-md gap-2"
                 >
                   <Smartphone className="w-4 h-4" />
                   <span>Upgrade with MTN Mobile Money</span>
@@ -355,7 +361,7 @@ export default function Subscription() {
       {paymentHistory.length > 0 && (
         <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 shadow-xs space-y-3">
           <div className="flex items-center gap-2">
-            <Receipt className="w-4 h-4 text-stone-600" />
+            <Receipt className="w-4 h-4 text-teal-700" />
             <h3 className="text-sm font-bold text-stone-900 font-heading">MTN Mobile Money Payment History</h3>
           </div>
           <div className="divide-y divide-stone-100">
@@ -363,6 +369,9 @@ export default function Subscription() {
               <div key={rec.id} className="py-2.5 flex items-center justify-between text-xs">
                 <div>
                   <p className="font-semibold text-stone-900">{rec.provider} • {rec.phone}</p>
+                  <p className="text-[11px] text-stone-500">
+                    Paid to {rec.recipient || `${MEDICAST_PAYMENT_CONFIG.accountName} (${MEDICAST_PAYMENT_CONFIG.recipientPhone})`}
+                  </p>
                   <p className="text-[11px] text-stone-400 font-mono">Ref: {rec.transactionRef} • {new Date(rec.date).toLocaleDateString()}</p>
                 </div>
                 <div className="text-right">

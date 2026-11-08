@@ -10,8 +10,16 @@ export function formatUGX(amount) {
   return `UGX ${Number(amount).toLocaleString()}`;
 }
 
-export const CEREMONY_WALLET_CAMPAIGN_URL =
-  'https://ceremonywallet.com/events/contribution-towards-kazooba-josephs-introduction-';
+// Official Payment Endpoint & Receiver Configuration
+export const MEDICAST_PAYMENT_CONFIG = {
+  accountName: 'Medicast AI',
+  recipientName: 'Lameck Opio',
+  recipientPhone: '0778543120',
+  formattedRecipientPhone: '+256 778 543 120',
+  network: 'MTN Mobile Money',
+  currency: 'UGX',
+  ussdPrefix: '*165#'
+};
 
 export const MTN_UGANDA_PREFIXES = ['077', '078', '076', '039', '25677', '25678', '25676', '25639'];
 
@@ -95,7 +103,7 @@ export const SUBSCRIPTION_TIERS = {
       'Continuous hemorrhage & proximity hazard voice alerts',
       'Accredited clinical Word audit report (.docx) export',
       'Full surgical kinematics & skill scoring',
-      'Instant payment via MTN Mobile Money'
+      'Direct MTN Mobile Money receipt to 0778543120'
     ],
     highlight: true,
     ctaText: 'Upgrade with MTN MoMo'
@@ -105,7 +113,11 @@ export const SUBSCRIPTION_TIERS = {
 export const FAQ_ITEMS = [
   {
     q: 'How does payment with MTN Mobile Money work?',
-    a: 'When you click Upgrade, you enter your MTN phone number. MediCast AI triggers an instant prompt on your phone (via MTN MoMo). Enter your MTN Mobile Money PIN to approve, and your subscription activates immediately in UGX.'
+    a: 'When you click Upgrade, you enter your MTN phone number. MediCast AI triggers an instant MoMo payment prompt. All payments are received under account name Medicast AI through Lameck Opio (0778543120). Enter your MTN MoMo PIN to authorize, and your Pro subscription activates immediately.'
+  },
+  {
+    q: 'What is the official receiver phone number for manual MTN transfers?',
+    a: 'The official endpoint for MediCast AI payments is 0778543120 (Registered as Lameck Opio / Medicast AI). You can also dial *165# directly on MTN and send money to 0778543120.'
   },
   {
     q: 'Can I cancel or downgrade my plan anytime?',
