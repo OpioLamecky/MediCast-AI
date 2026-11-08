@@ -244,22 +244,16 @@ export default function Register() {
           </div>
         )}
 
-        {/* ── Official Google Sign Up Container ── */}
-        <div className="space-y-2">
-          <div className="w-full flex justify-center min-h-[44px]">
-            <div ref={googleBtnContainerRef} className="w-full flex justify-center" />
-          </div>
-
-          <button
-            type="button"
-            onClick={handleGoogleClick}
-            disabled={loading}
-            className="w-full h-11 flex items-center justify-center gap-3 px-4 rounded-xl border border-stone-300 hover:bg-stone-50 bg-white text-stone-700 font-semibold text-xs sm:text-sm shadow-2xs transition-all active:scale-[0.99]"
-          >
-            <GoogleIcon className="w-4 h-4 shrink-0" />
-            <span>{loading ? "Authenticating with Google..." : "Sign up with Google"}</span>
-          </button>
-        </div>
+        {/* ── Single Clean Google Sign Up Button ── */}
+        <button
+          type="button"
+          onClick={handleGoogleClick}
+          disabled={loading}
+          className="w-full h-11 flex items-center justify-center gap-3 px-4 rounded-xl border border-stone-300 hover:bg-stone-50 bg-white text-stone-700 font-semibold text-xs sm:text-sm shadow-2xs transition-all active:scale-[0.99]"
+        >
+          <GoogleIcon className="w-4 h-4 shrink-0" />
+          <span>{loading ? "Authenticating with Google..." : "Sign up with Google"}</span>
+        </button>
 
         {/* Clean Divider */}
         <div className="flex items-center gap-3">
