@@ -8,6 +8,7 @@ load_dotenv(override=True)
 
 from .analyze import router as analyze_router
 from .ai_assistant import router as ai_router
+from .payment import router as payment_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,6 +29,7 @@ app.add_middleware(
 
 app.include_router(analyze_router, prefix="/api")
 app.include_router(ai_router, prefix="/api")
+app.include_router(payment_router, prefix="/api")
 
 @app.get("/health")
 async def health_check():

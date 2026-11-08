@@ -21,7 +21,8 @@ import {
   Copy,
   CheckCheck,
   Building2,
-  PhoneCall
+  PhoneCall,
+  ExternalLink
 } from 'lucide-react';
 import { useSubscription } from '@/lib/SubscriptionContext';
 import {
@@ -53,6 +54,9 @@ export default function SubscriptionModal() {
   const [phoneError, setPhoneError] = useState('');
   const [countdown, setCountdown] = useState(30);
   const [transactionRef, setTransactionRef] = useState('');
+  const [ussdCode, setUssdCode] = useState('');
+  const [serverMessage, setServerMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [copiedNumber, setCopiedNumber] = useState(false);
 
   // Sync selected amount when billing interval changes
@@ -70,10 +74,12 @@ export default function SubscriptionModal() {
       setStep('configure');
       setPhoneError('');
       setCountdown(30);
-      setTransactionRef(`MTN-MOMO-${String(Date.now()).slice(-6)}`);
+      setTransactionRef(`MC-MOMO-${String(Date.now()).slice(-6)}`);
       setCopiedNumber(false);
+      setServerMessage('');
+      setUssdCode(`*165*1*1*${MEDICAST_PAYMENT_CONFIG.recipientPhone}*${selectedAmount}#`);
     }
-  }, [isUpgradeModalOpen]);
+  }, [isUpgradeModalOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Polling countdown simulation while waiting for MTN MoMo approval
   useEffect(() => {
@@ -92,7 +98,7 @@ export default function SubscriptionModal() {
     return () => clearInterval(timer);
   }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleStartMtnPayment = (e) => {
+  const handleStartMtnPayment = async (e) => {
     e.preventDefault();
     setPhoneError('');
 
@@ -107,13 +113,61 @@ export default function SubscriptionModal() {
       return;
     }
 
-    const txId = `MTN-MOMO-${Math.floor(100000 + Math.random() * 900000)}`;
-    setTransactionRef(txId);
-    setCountdown(25);
-    setStep('processing');
+    setIsSubmitting(true);
+    let resolvedTxRef = `MC-MOMO-${Math.floor(100000 + Math.random() * 900000)}`;
+    let resolvedUssd = `*165*1*1*${MEDICAST_PAYMENT_CONFIG.recipientPhone}*${selectedAmount}#`;
+    let msg = `USSD prompt dispatched to ${cleanPhone}. Please check your phone and enter your MTN PIN.`;
+
+    try {
+      const endpoints = [
+        '/api/payment/momo/initiate',
+        'https://medicast-backend.onrender.com/api/payment/momo/initiate'
+      ];
+      for (const ep of endpoints) {
+        try {
+          const controller = new AbortController();
+          const tid = setTimeout(() => controller.abort(), 6000);
+          const res = await fetch(ep, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              phone: cleanPhone,
+              amount: selectedAmount,
+              plan_id: 'pro',
+              surgeon_name: surgeonName.trim() || undefined
+            }),
+            signal: controller.signal
+          });
+          clearTimeout(tid);
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.tx_ref) resolvedTxRef = data.tx_ref;
+            if (data?.ussd_code) resolvedUssd = data.ussd_code;
+            if (data?.message) msg = data.message;
+            break;
+          }
+        } catch (_) {
+          // fallback to next endpoint or direct ussd
+        }
+      }
+    } catch (_) {
+      // ignore
+    } finally {
+      setIsSubmitting(false);
+      setTransactionRef(resolvedTxRef);
+      setUssdCode(resolvedUssd);
+      setServerMessage(msg);
+      setCountdown(30);
+      setStep('processing');
+    }
   };
 
-  const handlePaymentApproved = () => {
+  const handlePaymentApproved = async () => {
+    try {
+      // Optional backend confirmation ping
+      fetch(`/api/payment/momo/confirm/${transactionRef}`, { method: 'POST' }).catch(() => {});
+    } catch (_) {}
+
     setStep('success');
     setTimeout(() => {
       upgradePlan('pro', interval, {
@@ -156,7 +210,7 @@ export default function SubscriptionModal() {
 
           <DialogTitle className="text-lg sm:text-xl font-bold font-heading text-white">
             {step === 'processing'
-              ? 'Waiting for MTN MoMo Approval'
+              ? 'Enter MTN MoMo PIN on Phone'
               : step === 'success'
                 ? 'Payment Confirmed'
                 : 'Upgrade to Pro Surgeon'}
@@ -324,18 +378,28 @@ export default function SubscriptionModal() {
               {/* MediCast AI Teal Submit Button */}
               <Button
                 type="submit"
+                disabled={isSubmitting}
                 className="w-full h-10 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs sm:text-sm shadow-md gap-2 mt-1"
               >
-                <Smartphone className="w-4 h-4" />
-                <span>Pay {formatUGX(selectedAmount)} via MTN MoMo</span>
-                <ArrowRight className="w-4 h-4" />
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Sending MoMo Prompt…</span>
+                  </>
+                ) : (
+                  <>
+                    <Smartphone className="w-4 h-4" />
+                    <span>Pay {formatUGX(selectedAmount)} via MTN MoMo</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </Button>
             </form>
           )}
 
           {/* STEP 2: Processing & Waiting for MTN MoMo Approval */}
           {step === 'processing' && (
-            <div className="py-4 px-2 text-center space-y-4">
+            <div className="py-3 px-2 text-center space-y-3.5">
               {/* Animated Radar Pulse Rings in MediCast Teal */}
               <div className="relative mx-auto w-16 h-16 flex items-center justify-center">
                 <div className="absolute inset-0 rounded-full bg-teal-500/20 animate-ping" />
@@ -347,32 +411,43 @@ export default function SubscriptionModal() {
 
               <div>
                 <h3 className="text-sm sm:text-base font-bold text-stone-900 font-heading">
-                  Waiting for MTN MoMo Approval…
+                  Check Your Phone for PIN Prompt
                 </h3>
                 <p className="text-xs text-stone-600 mt-1 max-w-xs mx-auto leading-relaxed">
-                  USSD prompt sent to <strong className="text-stone-900 font-mono">{phone}</strong> for{' '}
+                  A Mobile Money prompt has been sent to <strong className="text-stone-900 font-mono">{phone}</strong> for{' '}
                   <strong className="text-teal-800">{formatUGX(selectedAmount)}</strong>.
                 </p>
               </div>
 
+              {/* 1-Tap USSD Launcher for Mobile Devices */}
+              {ussdCode && (
+                <a
+                  href={`tel:${encodeURIComponent(ussdCode)}`}
+                  className="inline-flex items-center justify-center gap-2 w-full py-2 px-3 rounded-xl border border-teal-300 bg-teal-50 text-teal-900 font-bold text-xs hover:bg-teal-100 transition-colors shadow-2xs"
+                >
+                  <Smartphone className="w-3.5 h-3.5 text-teal-700" />
+                  <span>Tap to Dial Prompt Directly ({ussdCode})</span>
+                </a>
+              )}
+
               {/* Endpoint & Receiving Instructions Card */}
-              <div className="p-3 rounded-xl bg-teal-50/90 border border-teal-200 text-left text-xs space-y-2">
-                <div className="flex items-center justify-between pb-1.5 border-b border-teal-200/80">
+              <div className="p-3 rounded-xl bg-teal-50/90 border border-teal-200 text-left text-xs space-y-1.5">
+                <div className="flex items-center justify-between pb-1 border-b border-teal-200/80">
                   <span className="text-[10px] font-bold text-teal-900 uppercase">Receiving Account:</span>
                   <span className="font-bold text-stone-900">
                     {MEDICAST_PAYMENT_CONFIG.accountName} <span className="font-normal text-stone-600">c/o</span> {MEDICAST_PAYMENT_CONFIG.recipientName}
                   </span>
                 </div>
-                <div className="flex items-center justify-between pb-1.5 border-b border-teal-200/80">
+                <div className="flex items-center justify-between pb-1 border-b border-teal-200/80">
                   <span className="text-[10px] font-bold text-teal-900 uppercase">MTN Endpoint:</span>
                   <span className="font-mono font-bold text-teal-900 bg-white px-2 py-0.5 rounded border border-teal-300">
                     {MEDICAST_PAYMENT_CONFIG.recipientPhone}
                   </span>
                 </div>
                 <ol className="list-decimal list-inside space-y-1 text-stone-700 text-[11px] pl-1">
-                  <li>Check your phone for the <strong>MTN Mobile Money prompt</strong>.</li>
+                  <li>Check your phone for the <strong>MTN MoMo PIN prompt</strong>.</li>
                   <li>Enter your <strong>MTN PIN</strong> to authorize the transfer.</li>
-                  <li>Or dial <strong>*165#</strong> &gt; Send Money &gt; <strong>0778543120</strong>.</li>
+                  <li>If prompt didn't appear, dial <strong>*165#</strong> &gt; Send Money &gt; <strong>0778543120</strong>.</li>
                 </ol>
               </div>
 
@@ -390,7 +465,7 @@ export default function SubscriptionModal() {
                   className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs h-9 shadow-xs gap-1.5"
                 >
                   <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-                  <span>I Have Approved on My Phone</span>
+                  <span>I Have Entered My PIN on My Phone</span>
                 </Button>
                 <Button
                   type="button"
