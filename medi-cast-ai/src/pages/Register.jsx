@@ -163,7 +163,7 @@ export default function Register() {
     window.location.href = authUrl;
   };
 
-  // ── Standard Email/Password Registration ──
+  // ── Standard Email/Password Registration (Redirects to Login with Details) ──
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!email) {
@@ -182,43 +182,34 @@ export default function Register() {
     setError("");
     setLoading(true);
 
-    const newUser = {
-      id: 'usr_' + Date.now(),
-      email: email,
-      name: email.split('@')[0],
-      role: 'surgeon',
-      createdAt: new Date().toISOString()
-    };
+    const cleanEmail = email.trim();
 
-    localStorage.setItem('medicast_auth_user', JSON.stringify(newUser));
-    setShowConfirmation(true);
-    setLoading(false);
+    // Store newly registered account in local registry
+    try {
+      const existingRaw = localStorage.getItem('medicast_registered_users');
+      const users = existingRaw ? JSON.parse(existingRaw) : [];
+      users.push({
+        id: 'usr_' + Date.now(),
+        email: cleanEmail,
+        password: password,
+        name: cleanEmail.split('@')[0],
+        role: 'surgeon',
+        createdAt: new Date().toISOString()
+      });
+      localStorage.setItem('medicast_registered_users', JSON.stringify(users));
+    } catch (err) {
+      console.warn("Storage save error:", err);
+    }
+
+    // Save temporary details for auto-filling login form
+    localStorage.setItem('medicast_last_registered', JSON.stringify({
+      email: cleanEmail,
+      password: password
+    }));
+
+    // Redirect immediately to login with the registered details
+    window.location.href = `/login?registered=${encodeURIComponent(cleanEmail)}`;
   };
-
-  if (showConfirmation) {
-    return (
-      <div className="min-h-screen bg-[#FAF8F5] flex flex-col items-center justify-center p-4">
-        <div className="w-full max-w-[380px] bg-white rounded-2xl shadow-xl border border-stone-200/90 p-6 sm:p-7 space-y-4 text-center">
-          <div className="w-12 h-12 rounded-full bg-teal-50 border border-teal-200 flex items-center justify-center mx-auto text-teal-600">
-            <Check className="w-6 h-6" />
-          </div>
-          <h2 className="text-lg font-bold text-stone-900 font-heading">
-            Account Created
-          </h2>
-          <p className="text-xs text-stone-500 leading-relaxed">
-            Your surgeon workstation account for <strong className="text-stone-800">{email}</strong> has been registered.
-          </p>
-          <button
-            type="button"
-            onClick={() => window.location.href = "/"}
-            className="w-full h-10 flex items-center justify-center rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs sm:text-sm shadow-sm transition-colors"
-          >
-            Enter Dashboard
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] flex flex-col items-center justify-center p-4">

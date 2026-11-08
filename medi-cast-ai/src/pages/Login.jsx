@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Activity, Mail, Lock, Eye, EyeOff, Loader2, KeyRound, ExternalLink, Check, AlertCircle } from "lucide-react";
+import { Activity, Mail, Lock, Eye, EyeOff, Loader2, KeyRound, ExternalLink, Check, CheckCircle2, AlertCircle } from "lucide-react";
 import GoogleIcon from "@/components/GoogleIcon";
 
 const DEFAULT_GOOGLE_CLIENT_ID = "678354836912-9tsolf2fbp1g5hino8eimnutic0tc2nc.apps.googleusercontent.com";
@@ -29,6 +29,29 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+
+  // ── Auto-Fill Registered Credentials on Redirect ──
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const registeredEmail = params.get('registered');
+    if (registeredEmail) {
+      setEmail(registeredEmail);
+      setSuccessMessage("Account registered successfully! Sign in to enter your workstation.");
+
+      try {
+        const lastRegRaw = localStorage.getItem('medicast_last_registered');
+        if (lastRegRaw) {
+          const lastReg = JSON.parse(lastRegRaw);
+          if (lastReg?.email?.toLowerCase() === registeredEmail.toLowerCase() && lastReg?.password) {
+            setPassword(lastReg.password);
+          }
+        }
+      } catch (e) {
+        console.warn("Error reading registration cache:", e);
+      }
+    }
+  }, []);
 
   // Google OAuth Config State
   const [googleClientId, setGoogleClientId] = useState(
@@ -221,11 +244,13 @@ export default function Login() {
 
     const localUser = {
       id: 'usr_' + Date.now(),
-      email: email,
+      email: email.trim(),
       name: email.split('@')[0],
-      role: 'surgeon'
+      role: 'surgeon',
+      authenticatedAt: new Date().toISOString()
     };
     localStorage.setItem('medicast_auth_user', JSON.stringify(localUser));
+    localStorage.removeItem('medicast_last_registered');
     window.location.href = "/";
   };
 
@@ -245,6 +270,14 @@ export default function Login() {
             Intraoperative Surgical Intelligence
           </p>
         </div>
+
+        {/* Registration Success Alert */}
+        {successMessage && (
+          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-start gap-2 shadow-2xs">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            <span className="leading-relaxed font-medium">{successMessage}</span>
+          </div>
+        )}
 
         {/* Error Alert */}
         {error && (
