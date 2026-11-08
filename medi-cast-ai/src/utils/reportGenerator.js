@@ -204,7 +204,7 @@ export const generateWordReport = async (video, analysis) => {
   const pType = video.procedure_type || "Surgical Procedure";
   const isEye = pType.toLowerCase().includes("cataract") || pType.toLowerCase().includes("eye");
   const isLap = pType.toLowerCase().includes("cholecystectomy") || pType.toLowerCase().includes("lap") || pType.toLowerCase().includes("append");
-  
+
   const overallScore = analysis.overall_score || 92;
   const safetyScore = analysis.safety_score || 94;
   const skillScore = analysis.skill_score || 91;
@@ -310,7 +310,7 @@ export const generateWordReport = async (video, analysis) => {
           // ── Title & Institutional Cover Header ──
           createTitle("MEDICAST AI SURGICAL INTELLIGENCE REPORT"),
           createSubtitle("AUTONOMOUS CLINICAL TELEMETRY, ANATOMICAL MAPPING & OPERATIVE AUDIT"),
-          
+
           createParagraph(
             `This comprehensive clinical audit report provides algorithmic assessment and computer vision analysis for surgical procedure record "${video.title || pType}". Analysis was executed utilizing multi-tier vision transformers, connective tissue plane segmentation, and biomechanical motion economy tracking adhering to international surgical standards (SAGES, AAO, Royal College of Surgeons).`,
             { italics: true, color: COLORS.SLATE_MUTED, size: 19, after: 180 }
@@ -425,10 +425,9 @@ export const generateWordReport = async (video, analysis) => {
           // Metric 2: Safety Narrative
           createSubSectionHeading(`2.2 Patient Safety & Tissue Plane Integrity — Score: ${safetyScore}/100 (${getTier(safetyScore)})`),
           createParagraph(
-            `• Why this score was achieved: The surgeon demonstrated extraordinary safety discipline around critical non-target anatomical zones. ${
-              isEye 
-                ? "The posterior lens capsule, corneal endothelium, and zonular attachments were continuously monitored. Zero posterior capsular micro-rents or zonular dehiscences occurred. Hydrodynamic anterior chamber depth was maintained at 100% stability."
-                : "Safe dissection corridors adhered to standard surgical triangles. Zero vascular breaches or inadvertent thermal spread occurred. Counter-traction vectors respected natural fascial clefts (Anaut EUREKA benchmark)."
+            `• Why this score was achieved: The surgeon demonstrated extraordinary safety discipline around critical non-target anatomical zones. ${isEye
+              ? "The posterior lens capsule, corneal endothelium, and zonular attachments were continuously monitored. Zero posterior capsular micro-rents or zonular dehiscences occurred. Hydrodynamic anterior chamber depth was maintained at 100% stability."
+              : "Safe dissection corridors adhered to standard surgical triangles. Zero vascular breaches or inadvertent thermal spread occurred. Counter-traction vectors respected natural fascial clefts (Anaut EUREKA benchmark)."
             }`
           ),
           createParagraph(
@@ -438,10 +437,9 @@ export const generateWordReport = async (video, analysis) => {
           // Metric 3: Technical Skill Narrative
           createSubSectionHeading(`2.3 Technical Skill & Dissective Precision — Score: ${skillScore}/100 (${getTier(skillScore)})`),
           createParagraph(
-            `• Why this score was achieved: Micro-tremor filtering recorded an instrument stability rating of 98.4%. Force vector modulation remained strictly below 1.8 N, preventing shear trauma. ${
-              isEye 
-                ? "Continuous Curvilinear Capsulorhexis (CCC) achieved a circularity index of 0.96 with pristine 360-degree overlap. Stop-and-chop nuclear division was completed with minimal cumulative dissipated energy (CDE 6.8)."
-                : "Dissection planes cleanly identified the 'Holy Plane' of connective tissue without parenchymal tearing or unnecessary thermal coagulation."
+            `• Why this score was achieved: Micro-tremor filtering recorded an instrument stability rating of 98.4%. Force vector modulation remained strictly below 1.8 N, preventing shear trauma. ${isEye
+              ? "Continuous Curvilinear Capsulorhexis (CCC) achieved a circularity index of 0.96 with pristine 360-degree overlap. Stop-and-chop nuclear division was completed with minimal cumulative dissipated energy (CDE 6.8)."
+              : "Dissection planes cleanly identified the 'Holy Plane' of connective tissue without parenchymal tearing or unnecessary thermal coagulation."
             }`
           ),
           createParagraph(
@@ -476,7 +474,7 @@ export const generateWordReport = async (video, analysis) => {
                   createCell("Clinical Observations & Evidence", { header: true, width: 36 }),
                 ],
               }),
-              ...phases.map((ph, idx) => 
+              ...phases.map((ph, idx) =>
                 new TableRow({
                   children: [
                     createCell([
@@ -556,7 +554,7 @@ export const generateWordReport = async (video, analysis) => {
             { italics: true, color: COLORS.SLATE_MUTED }
           ),
 
-          ...recommendations.map(rec => 
+          ...recommendations.map(rec =>
             createParagraph(`• ${rec}`, { bold: false, size: 20, after: 80 })
           ),
 

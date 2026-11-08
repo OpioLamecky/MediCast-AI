@@ -9,26 +9,75 @@ export const AuthProvider = ({ children }) => {
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [authError, setAuthError] = useState(null);
 
+  const resolveUser = async () => {
+    try {
+      // 1. Check Supabase session
+      const { data } = await supabase.auth.getSession();
+      if (data?.session?.user) {
+        setUser(data.session.user);
+        setIsAuthenticated(true);
+        setIsLoadingAuth(false);
+        return;
+      }
+    } catch (e) {
+      console.warn("Supabase auth check:", e);
+    }
+
+    // 2. Check local authenticated user (e.g. Google Sign-In or local surgeon session)
+    try {
+      const raw = localStorage.getItem('medicast_auth_user');
+      if (raw) {
+        const localUser = JSON.parse(raw);
+        if (localUser && (localUser.email || localUser.id)) {
+          setUser(localUser);
+          setIsAuthenticated(true);
+          setIsLoadingAuth(false);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Local auth parse error:", e);
+    }
+
+    setUser(null);
+    setIsAuthenticated(false);
+    setIsLoadingAuth(false);
+  };
+
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setIsAuthenticated(!!session?.user);
-      setIsLoadingAuth(false);
-    });
+    resolveUser();
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setIsAuthenticated(!!session?.user);
-      setIsLoadingAuth(false);
-    });
+    // Listen for Supabase auth state changes
+    let subscription = null;
+    try {
+      const res = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) {
+          setUser(session.user);
+          setIsAuthenticated(true);
+          setIsLoadingAuth(false);
+        } else {
+          resolveUser();
+        }
+      });
+      subscription = res?.data?.subscription;
+    } catch {}
 
-    return () => subscription.unsubscribe();
+    const handleStorage = () => resolveUser();
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      if (subscription?.unsubscribe) subscription.unsubscribe();
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
 
   const logout = async (shouldRedirect = true) => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {}
+    localStorage.removeItem('medicast_auth_user');
+    setUser(null);
+    setIsAuthenticated(false);
     if (shouldRedirect) {
       window.location.href = '/login';
     }
