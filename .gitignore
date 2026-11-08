@@ -7,6 +7,10 @@ __pycache__/
 .env
 .env.local
 .env.*.local
+*.private.md
+*.private.json
+API_CONFIG.private.md
+secrets/
 
 # Build output
 dist/
