@@ -7,6 +7,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const hasValidSupabaseConfig = Boolean(
   supabaseUrl &&
   !supabaseUrl.includes('placeholder') &&
+  !supabaseUrl.includes('lsyjzdgolbhoekpbfwnh') &&
   supabaseUrl.startsWith('http') &&
   supabaseAnonKey &&
   supabaseAnonKey !== 'placeholder'
@@ -203,11 +204,19 @@ const localAuth = {
     localStorage.setItem('medicast_auth_user', JSON.stringify(user));
     return { data: { user, session: { user } }, error: null };
   },
-  async signInWithOAuth() {
-    const user = { id: 'usr_oauth', email: 'surgeon@medicast.ai', role: 'surgeon' };
+  async signInWithOAuth({ provider = 'google', options = {} } = {}) {
+    const user = {
+      id: 'google_user_lameck',
+      email: 'opiolamecky@gmail.com',
+      name: 'Lameck Opio',
+      role: 'lead_surgeon',
+      provider: provider
+    };
     localStorage.setItem('medicast_auth_user', JSON.stringify(user));
-    if (typeof window !== 'undefined') window.location.href = '/';
-    return { data: null, error: null };
+    if (typeof window !== 'undefined') {
+      window.location.href = options.redirectTo || '/';
+    }
+    return { data: { user, session: { user }, url: options.redirectTo || '/' }, error: null };
   },
   async signOut() {
     localStorage.removeItem('medicast_auth_user');
