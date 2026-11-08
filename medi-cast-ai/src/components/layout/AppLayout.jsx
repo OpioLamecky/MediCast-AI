@@ -37,7 +37,13 @@ export default function AppLayout() {
   const [searchParams] = useSearchParams();
   const [conversations, setConversations] = useState([]);
   const { plan, planId, isProOrHigher, usage, openUpgradeModal } = useSubscription();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, isLoadingAuth, logout } = useAuth();
+
+  useEffect(() => {
+    if (!isLoadingAuth && !isAuthenticated) {
+      navigate('/login');
+    }
+  }, [isLoadingAuth, isAuthenticated, navigate]);
 
   const activeChatId = searchParams.get('c');
   const isAssistantPage = location.pathname.startsWith('/assistant');
@@ -78,6 +84,23 @@ export default function AppLayout() {
       }
     }
   };
+
+  if (isLoadingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FAF8F5]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-teal-800 flex items-center justify-center text-white shadow-md animate-pulse">
+            <Activity className="w-5 h-5 text-teal-300" />
+          </div>
+          <p className="text-xs text-stone-500 font-mono">Verifying workstation session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] w-full max-w-full overflow-x-hidden relative">
