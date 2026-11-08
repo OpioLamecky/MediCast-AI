@@ -9,9 +9,14 @@ import {
   Activity,
   GitCompare,
   Plus,
-  Trash2
+  Trash2,
+  Crown,
+  Sparkles,
+  ArrowRight
 } from 'lucide-react';
 import { getSavedConversations, saveConversations, createNewChat } from '@/lib/chatStorage';
+import { useSubscription } from '@/lib/SubscriptionContext';
+import SubscriptionModal from '@/components/subscription/SubscriptionModal';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -20,6 +25,7 @@ const navItems = [
   { path: '/analyses', label: 'Analyses', icon: Brain },
   { path: '/compare', label: 'Compare', icon: GitCompare },
   { path: '/assistant', label: 'AI Assistant', icon: MessageSquare },
+  { path: '/subscription', label: 'Subscription', icon: Crown },
 ];
 
 export default function AppLayout() {
@@ -27,6 +33,7 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [conversations, setConversations] = useState([]);
+  const { plan, planId, isProOrHigher, usage, openUpgradeModal } = useSubscription();
 
   const activeChatId = searchParams.get('c');
   const isAssistantPage = location.pathname.startsWith('/assistant');
@@ -167,6 +174,55 @@ export default function AppLayout() {
             </div>
           </div>
         )}
+
+        {/* ── Sidebar Bottom Subscription Widget ── */}
+        <div className="p-3 border-t border-stone-200/80 bg-stone-50/70 mt-auto shrink-0">
+          <div className="p-3 rounded-xl bg-white border border-stone-200 shadow-2xs space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
+                Plan Status
+              </span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                isProOrHigher ? 'bg-teal-100 text-teal-800' : 'bg-stone-100 text-stone-700'
+              }`}>
+                {plan.name}
+              </span>
+            </div>
+
+            <p className="text-xs text-stone-600">
+              {isProOrHigher ? (
+                <span className="font-semibold text-teal-900 flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+                  Unlimited AI & Video Analyses
+                </span>
+              ) : (
+                <span>
+                  {Math.max(0, (plan.limits.videosPerMonth || 3) - (usage.videosAnalyzedThisMonth || 0))} videos left this month
+                </span>
+              )}
+            </p>
+
+            <div className="flex items-center gap-1.5 pt-1">
+              {!isProOrHigher ? (
+                <button
+                  type="button"
+                  onClick={() => openUpgradeModal('Sidebar Upgrade')}
+                  className="w-full flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold shadow-xs transition-colors"
+                >
+                  <Crown className="w-3 h-3" />
+                  <span>Upgrade to Pro</span>
+                </button>
+              ) : (
+                <Link
+                  to="/subscription"
+                  className="w-full flex items-center justify-center gap-1 py-1 px-2 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-medium transition-colors"
+                >
+                  <span>Manage Plan</span>
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
       </aside>
 
       {/* Mobile Header */}
@@ -202,6 +258,9 @@ export default function AppLayout() {
       <main className="flex-1 min-w-0 md:ml-64 pt-14 md:pt-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0 w-full max-w-full overflow-x-hidden">
         <Outlet />
       </main>
+
+      {/* Global Subscription & Plan Upgrade Dialog */}
+      <SubscriptionModal />
     </div>
   );
 }

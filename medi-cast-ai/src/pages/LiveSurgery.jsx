@@ -41,13 +41,15 @@ import {
   Film,
   Loader2,
   Settings2,
-  X
+  X,
+  Crown
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
+import { useSubscription } from '@/lib/SubscriptionContext';
 
 // ─────────────────────────────────────────────────────────────
 // Clinical Acoustic & Voice Alert Synthesizer (Zero External Assets)
@@ -172,6 +174,7 @@ export default function LiveSurgery() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
+  const { recordVideoAnalysis, openUpgradeModal, isProOrHigher } = useSubscription();
 
   const initialMode = searchParams.get('mode') === 'prerecorded' ? 'prerecorded' : 'live';
   const initialProc = searchParams.get('procedure') || 'Laparoscopic Cholecystectomy';
@@ -1049,6 +1052,9 @@ export default function LiveSurgery() {
 
       await supabase.from('SurgeryVideo').update({ status: 'analyzed' }).eq('id', savedVideo.id);
 
+      // Record video analysis for subscription usage
+      recordVideoAnalysis();
+
       setCompletedSession({
         videoRecord: { ...savedVideo, status: 'analyzed' },
         analysisRecord: savedAnalysis || compiledAnalysis
@@ -1254,6 +1260,23 @@ export default function LiveSurgery() {
                 <Film className="w-3.5 h-3.5 text-teal-600" />
                 PRE-RECORDED MODE
               </span>
+            )}
+
+            {isProOrHigher ? (
+              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <Crown className="w-3 h-3 text-emerald-600" />
+                <span>Pro OR Unlimited</span>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => openUpgradeModal('Live Surgery Stream Mode')}
+                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 transition-colors"
+                title="Click to upgrade for continuous live surgery OR streaming"
+              >
+                <Crown className="w-3 h-3 text-amber-600" />
+                <span>Resident Trial · Upgrade</span>
+              </button>
             )}
           </div>
           <p className="text-xs sm:text-sm text-stone-600 mt-1">

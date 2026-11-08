@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { SURGICAL_PROCEDURES, SURGICAL_DEPARTMENTS } from '@/api/aiService';
-import { Upload, FileVideo, Loader2, Radio, Video } from 'lucide-react';
+import { Upload, FileVideo, Loader2, Radio, Video, Crown, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
+import { useSubscription } from '@/lib/SubscriptionContext';
 
 const procedures = SURGICAL_PROCEDURES;
 const departments = SURGICAL_DEPARTMENTS;
@@ -16,6 +17,7 @@ const departments = SURGICAL_DEPARTMENTS;
 export default function UploadVideo() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { canAnalyzeVideo, openUpgradeModal, isProOrHigher } = useSubscription();
   const [uploading, setUploading] = useState(false);
   const [file, setFile] = useState(null);
   const [form, setForm] = useState({
@@ -38,6 +40,18 @@ export default function UploadVideo() {
     e.preventDefault();
     if (!form.title || !form.procedure_type) {
       toast({ title: 'Please fill in required fields', variant: 'destructive' });
+      return;
+    }
+
+    // Verify video analysis subscription quota
+    const quota = canAnalyzeVideo();
+    if (!quota.allowed) {
+      toast({
+        title: 'Monthly Analysis Limit Reached',
+        description: quota.reason,
+        variant: 'destructive'
+      });
+      openUpgradeModal('Video Analysis Monthly Quota');
       return;
     }
 
@@ -81,7 +95,7 @@ export default function UploadVideo() {
 
   return (
     <div className="p-6 md:p-8 max-w-2xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 font-heading">Upload Pre-Recorded Surgery</h1>
           <p className="text-sm text-slate-500 mt-1">Upload a recorded surgical video or switch to Live PC Camera stream</p>
@@ -101,6 +115,35 @@ export default function UploadVideo() {
             <span>Pre-Recorded</span>
           </span>
         </div>
+      </div>
+
+      {/* Subscription Quota Status Banner */}
+      <div className="mb-6 p-3.5 rounded-2xl bg-white border border-stone-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
+            <Crown className="w-4 h-4 text-teal-600" />
+          </div>
+          <div>
+            <p className="font-semibold text-stone-900">
+              {isProOrHigher ? 'Pro Surgeon Plan · Unlimited Video Analyses' : 'Resident Tier Quota'}
+            </p>
+            <p className="text-stone-500">
+              {isProOrHigher
+                ? 'Full multi-phase surgical AI vision & kinematics tracking unlocked.'
+                : `${canAnalyzeVideo().remaining} of 3 video analyses remaining this calendar month.`}
+            </p>
+          </div>
+        </div>
+
+        {!isProOrHigher && (
+          <button
+            type="button"
+            onClick={() => openUpgradeModal('Video Upload Page')}
+            className="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs transition-colors shadow-xs self-start sm:self-auto shrink-0"
+          >
+            Upgrade to Pro
+          </button>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">

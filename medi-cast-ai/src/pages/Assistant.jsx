@@ -1,13 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Send, Plus, MessageSquare, Loader2, Trash2, Menu, X, Sparkles, Compass } from 'lucide-react';
+import { Send, Plus, MessageSquare, Loader2, Trash2, Menu, X, Sparkles, Compass, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import MessageBubble from '@/components/assistant/MessageBubble';
 import { getSavedConversations, saveConversations, createNewChat } from '@/lib/chatStorage';
 import { sendChatMessage } from '@/api/aiService';
+import { useSubscription } from '@/lib/SubscriptionContext';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function Assistant() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { toast } = useToast();
+  const { canUseAiAssistant, recordAiQuery, openUpgradeModal, isProOrHigher } = useSubscription();
   const [conversations, setConversations] = useState([]);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -17,6 +21,7 @@ export default function Assistant() {
   const messagesEnd = useRef(null);
 
   const activeChatId = searchParams.get('c');
+  const quotaCheck = canUseAiAssistant();
 
   // Load conversations from shared storage
   const refreshConvos = () => {
@@ -83,6 +88,18 @@ export default function Assistant() {
   const sendMessage = async () => {
     if (!input.trim() || sending) return;
 
+    // Check subscription quota
+    const quota = canUseAiAssistant();
+    if (!quota.allowed) {
+      toast({
+        title: 'Daily AI Query Quota Reached',
+        description: quota.reason,
+        variant: 'destructive'
+      });
+      openUpgradeModal('AI Assistant Daily Quota');
+      return;
+    }
+
     let convoId = activeChatId;
     let targetConvo = activeConvo;
 
@@ -110,6 +127,9 @@ export default function Assistant() {
       const responseText = await sendChatMessage(userMsg.content, targetConvo.messages || []);
       const aiMsg = { role: 'assistant', content: responseText };
       targetConvo.messages = [...updatedMessages, aiMsg];
+
+      // Record successful AI query for subscription usage
+      recordAiQuery();
 
       // Update title on first response if still default
       if (targetConvo.metadata?.name === 'New Surgical Discussion') {
@@ -151,6 +171,24 @@ export default function Assistant() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          {isProOrHigher ? (
+            <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+              <Crown className="w-3 h-3 text-emerald-600" />
+              <span>Pro · Unlimited Queries</span>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => openUpgradeModal('AI Assistant Daily Quota')}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 transition-colors"
+              title="Click to upgrade to Pro for unlimited AI consultations"
+            >
+              <Crown className="w-3 h-3 text-amber-600" />
+              <span>{quotaCheck.remaining}/{quotaCheck.limit} Left Today</span>
+              <span className="text-[10px] text-teal-700 underline font-bold ml-0.5">Upgrade</span>
+            </button>
+          )}
+
           <Button
             onClick={handleCreateNew}
             variant="outline"
@@ -216,6 +254,24 @@ export default function Assistant() {
 
       {/* ── Chat Input Bar (Directly attached to the bottom, full width) ── */}
       <div className="bg-white/95 backdrop-blur-sm border-t border-stone-200/80 p-3 sm:p-4 sticky bottom-0 z-20">
+        {!quotaCheck.allowed && !isProOrHigher && (
+          <div className="max-w-4xl mx-auto mb-3 p-3 rounded-2xl bg-amber-50 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2 text-amber-900">
+              <Crown className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>
+                <strong>Daily Free Limit Reached:</strong> You've used all 10 free AI queries today. Upgrade to Pro Surgeon for unlimited surgical reasoning.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => openUpgradeModal('AI Assistant Daily Limit')}
+              className="px-3 py-1 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs shrink-0 transition-colors shadow-xs"
+            >
+              Upgrade to Pro
+            </button>
+          </div>
+        )}
+
         <div className="max-w-4xl mx-auto flex gap-2.5">
           <input
             value={input}

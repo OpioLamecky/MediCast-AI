@@ -14,6 +14,8 @@ import Analyses from '@/pages/Analyses';
 import AnalysisDetail from '@/pages/AnalysisDetail';
 import Assistant from '@/pages/Assistant';
 import Compare from '@/pages/Compare';
+import Subscription from '@/pages/Subscription';
+import { SubscriptionProvider } from '@/lib/SubscriptionContext';
 
 const MainApp = () => {
   return (
@@ -26,6 +28,7 @@ const MainApp = () => {
         <Route path="/analysis/:id" element={<AnalysisDetail />} />
         <Route path="/assistant" element={<Assistant />} />
         <Route path="/compare" element={<Compare />} />
+        <Route path="/subscription" element={<Subscription />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
@@ -35,11 +38,13 @@ const MainApp = () => {
 function App() {
   return (
     <QueryClientProvider client={queryClientInstance}>
-      <Router>
-        <ScrollToTop />
-        <MainApp />
-      </Router>
-      <Toaster />
+      <SubscriptionProvider>
+        <Router>
+          <ScrollToTop />
+          <MainApp />
+        </Router>
+        <Toaster />
+      </SubscriptionProvider>
     </QueryClientProvider>
   )
 }

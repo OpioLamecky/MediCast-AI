@@ -2,18 +2,20 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
 import { analyzeSurgicalVideo } from '@/api/aiService';
-import { ArrowLeft, Loader2, Wrench, Brain, FileText, Square, RotateCcw, CheckCircle2, Radio } from 'lucide-react';
+import { ArrowLeft, Loader2, Wrench, Brain, FileText, Square, RotateCcw, CheckCircle2, Radio, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import ScoreRing from '@/components/analysis/ScoreRing';
 import PhaseTimeline from '@/components/analysis/PhaseTimeline';
 import RiskEventList from '@/components/analysis/RiskEventList';
 import { generateWordReport } from '@/utils/reportGenerator';
+import { useSubscription } from '@/lib/SubscriptionContext';
 
 export default function AnalysisDetail() {
   const { id } = useParams();
   const location = useLocation();
   const { toast } = useToast();
+  const { canAnalyzeVideo, recordVideoAnalysis, openUpgradeModal, isProOrHigher } = useSubscription();
   const [video, setVideo] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -65,6 +67,18 @@ export default function AnalysisDetail() {
   }, [id, location.state]);
 
   const runAnalysis = async () => {
+    // Check subscription quota before starting video analysis
+    const quota = canAnalyzeVideo();
+    if (!quota.allowed) {
+      toast({
+        title: 'Monthly Analysis Limit Reached',
+        description: quota.reason,
+        variant: 'destructive'
+      });
+      openUpgradeModal('Video Analysis Quota');
+      return;
+    }
+
     // Clear any previous report so report CANNOT be downloaded before fresh analysis completes
     setAnalysis(null);
     setAnalyzing(true);
@@ -125,6 +139,10 @@ export default function AnalysisDetail() {
       await supabase.from('SurgeryVideo').update({ status: 'analyzed' }).eq('id', id);
       setVideo(v => ({ ...v, status: 'analyzed' }));
       setAnalysis(analysisRecord || result);
+
+      // Record video analysis in subscription usage
+      recordVideoAnalysis();
+
       toast({ title: 'Analysis Complete', description: 'Surgical insights generated successfully!' });
     } catch (err) {
       console.warn('completeAnalysis primary insert failed, using fallback:', err);
@@ -138,6 +156,9 @@ export default function AnalysisDetail() {
         await supabase.from('SurgeryVideo').update({ status: 'analyzed' }).eq('id', id);
         setVideo(v => ({ ...v, status: 'analyzed' }));
         setAnalysis(rec || fallback);
+
+        // Record video analysis in subscription usage
+        recordVideoAnalysis();
         toast({ title: 'Analysis Complete', description: 'Surgical assessment generated.' });
       } catch (innerErr) {
         toast({ title: 'Notice', description: innerErr.message, variant: 'destructive' });
@@ -156,6 +177,16 @@ export default function AnalysisDetail() {
       });
       return;
     }
+
+    if (!isProOrHigher) {
+      toast({
+        title: 'Pro Surgeon Feature',
+        description: 'Clinical Word (.docx) audit report generation is unlocked on Pro Surgeon.',
+      });
+      openUpgradeModal('Clinical Word Report Export');
+      return;
+    }
+
     try {
       await generateWordReport(video, analysis);
       toast({ title: 'Report downloaded successfully' });
@@ -208,6 +239,11 @@ export default function AnalysisDetail() {
           <>
             <Button onClick={downloadReport} className="bg-teal-700 hover:bg-teal-800 text-white shadow-sm font-medium">
               <FileText className="w-4 h-4 mr-2" /> Download Clinical Report (.docx)
+              {!isProOrHigher && (
+                <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-amber-400 text-stone-900 font-bold uppercase">
+                  Pro
+                </span>
+              )}
             </Button>
             <Button onClick={runAnalysis} variant="outline" className="border-slate-300 text-slate-700 hover:bg-slate-50">
               <RotateCcw className="w-4 h-4 mr-2" /> Re-analyze Video
