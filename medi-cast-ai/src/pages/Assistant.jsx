@@ -233,13 +233,15 @@ export default function Assistant() {
       </div>
 
       {/* ── Main Message Thread ── */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-4 max-w-4xl w-full mx-auto">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-4 max-w-2xl w-full mx-auto">
         {messages.length === 0 ? (
           <div className="h-full min-h-[380px] flex items-center justify-center">
-            <div className="max-w-md w-full bg-white rounded-3xl p-6 sm:p-8 border border-stone-200/90 shadow-sm text-center space-y-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center mx-auto shadow-sm">
-                <Compass className="w-7 h-7 text-white" />
-              </div>
+            <div className="max-w-md w-full bg-white rounded-3xl p-6 sm:p-7 border border-stone-200/90 shadow-sm text-center space-y-4">
+              <img
+                src="/medicast-logo.png"
+                alt="MediCast AI"
+                className="h-12 w-auto object-contain mx-auto drop-shadow-xs"
+              />
               <div>
                 <h3 className="text-lg font-bold text-stone-900 font-heading">MediCast Surgical Intelligence</h3>
                 <p className="text-xs text-stone-600 mt-1.5 leading-relaxed">
@@ -274,7 +276,7 @@ export default function Assistant() {
 
         {/* Pulsing Clinical Reasoning Indicator */}
         {sending && (
-          <div className="flex items-start gap-3 p-4 rounded-2xl bg-white border border-stone-200/90 shadow-2xs max-w-2xl animate-pulse">
+          <div className="flex items-start gap-3 p-4 rounded-2xl bg-white border border-stone-200/90 shadow-2xs max-w-md mx-auto animate-pulse">
             <div className="w-8 h-8 rounded-xl bg-teal-600 flex items-center justify-center text-white shrink-0">
               <Sparkles className="w-4 h-4 animate-spin" />
             </div>
@@ -288,22 +290,22 @@ export default function Assistant() {
         <div ref={messagesEnd} />
       </div>
 
-      {/* ── Chat Input Bar (Inside Form with e.preventDefault to prevent shaking) ── */}
-      <div className="bg-white/95 backdrop-blur-sm border-t border-stone-200/80 p-3 sm:p-4 sticky bottom-0 z-20">
+      {/* ── Chat Input Bar (Proportionate to the middle card) ── */}
+      <div className="bg-white/95 backdrop-blur-sm border-t border-stone-200/80 p-3 sm:p-3.5 sticky bottom-0 z-20">
         {!quotaCheck.allowed && !isProOrHigher && (
-          <div className="max-w-4xl mx-auto mb-3 p-3 rounded-2xl bg-amber-50 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+          <div className="max-w-md mx-auto mb-2.5 p-2.5 rounded-2xl bg-amber-50 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-2 text-amber-900">
               <Crown className="w-4 h-4 text-amber-600 shrink-0" />
               <span>
-                <strong>Daily Free Limit Reached:</strong> You've used all 10 free AI queries today. Upgrade to Pro Surgeon for unlimited surgical reasoning.
+                <strong>Daily Limit Reached:</strong> Upgrade to Pro for unlimited queries.
               </span>
             </div>
             <button
               type="button"
               onClick={() => openUpgradeModal('AI Assistant Daily Limit')}
-              className="px-3 py-1 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs shrink-0 transition-colors shadow-xs"
+              className="px-2.5 py-1 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs shrink-0 transition-colors shadow-xs"
             >
-              Upgrade to Pro
+              Upgrade
             </button>
           </div>
         )}
@@ -313,20 +315,20 @@ export default function Assistant() {
             e.preventDefault();
             sendMessage();
           }}
-          className="max-w-4xl mx-auto flex gap-2.5"
+          className="max-w-md w-full mx-auto flex items-center gap-2"
         >
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about surgery, connective tissue planes, risk factors, or clinical guidance..."
-            className="flex-1 bg-stone-50 border border-stone-200/90 rounded-2xl px-4 py-3 text-sm text-stone-900 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white transition-all shadow-2xs"
+            placeholder="Ask about surgery, tissue planes, or clinical guidance..."
+            className="flex-1 bg-stone-50 border border-stone-200/90 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-stone-900 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white transition-all shadow-2xs"
             disabled={sending}
             autoFocus
           />
           <Button
             type="submit"
             disabled={!input.trim() || sending}
-            className="bg-teal-600 hover:bg-teal-700 text-white rounded-2xl px-5 h-auto shadow-xs"
+            className="bg-teal-600 hover:bg-teal-700 text-white rounded-xl px-3.5 py-2.5 h-auto shadow-xs shrink-0"
           >
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </Button>
