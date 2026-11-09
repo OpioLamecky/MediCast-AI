@@ -532,23 +532,7 @@ export default function Architecture() {
           </div>
         </div>
 
-        {/* ── Subsystem Quick Nav Pills Under Image ── */}
-        <div className="flex items-center justify-start sm:justify-center gap-2 overflow-x-auto py-1 text-xs">
-          {HOTSPOTS.map((spot) => (
-            <button
-              key={spot.id}
-              type="button"
-              onClick={() => setSelectedHotspot(spot.id)}
-              className={`px-3 py-1.5 rounded-xl border text-xs font-semibold whitespace-nowrap transition-all ${
-                selectedHotspot === spot.id
-                  ? 'bg-teal-50 border-teal-300 text-teal-800 shadow-2xs font-bold'
-                  : 'bg-[#FAF8F5] border-stone-200/90 text-stone-600 hover:text-stone-900 hover:bg-stone-100'
-              }`}
-            >
-              {spot.num}. {spot.title}
-            </button>
-          ))}
-        </div>
+
       </div>
 
       {/* ── MIDDLE SECTION: INTERACTIVE SIMULATION CONTROLS & DYNAMICS MECHANISM ── */}
