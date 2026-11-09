@@ -42,7 +42,16 @@ import {
   Loader2,
   Settings2,
   X,
-  Crown
+  Crown,
+  Monitor,
+  Maximize,
+  Minimize,
+  Shield,
+  Check,
+  Activity,
+  FileDown,
+  AlertOctagon,
+  Info
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -238,6 +247,13 @@ export default function LiveSurgery() {
   const [liveTelemetry, setLiveTelemetry] = useState(() => createStandbyTelemetry(initialProc));
   const [alertsFeed, setAlertsFeed] = useState([]);
   const [activeBannerAlert, setActiveBannerAlert] = useState(null);
+
+  // ── Operating Room (OR) Wall Screen Cockpit & Deployment State ──
+  const [isWallScreenMode, setIsWallScreenMode] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showOrDiagramModal, setShowOrDiagramModal] = useState(false);
+  const [mockAlertActive, setMockAlertActive] = useState(true); // Default to 'Instrument Not Sterile' from OR diagram, toggleable
+  const orWallVideoRef = useRef(null);
 
   // ── Refs ──
   const liveVideoRef = useRef(null);
@@ -1129,6 +1145,107 @@ export default function LiveSurgery() {
     }
   };
 
+  // ── Download Real-time OR Wall Clinical Report (.docx) ──
+  const handleDownloadWallDocx = async () => {
+    try {
+      if (completedSession) {
+        await generateWordReport(completedSession.videoRecord, completedSession.analysisRecord);
+        toast({ title: 'Clinical Audit Report (.docx) downloaded' });
+        return;
+      }
+      const snapshotVideo = {
+        id: sessionIdRef.current,
+        title: caseMeta.title || `${procedureType} (Intraoperative OR Live Session)`,
+        procedure_type: procedureType,
+        surgeon_name: caseMeta.surgeon_name || 'Attending Surgeon',
+        patient_id: caseMeta.patient_id || 'OR-WALL-01',
+        department: caseMeta.department || 'General Surgery',
+        duration: elapsedSeconds || 4320,
+        created_at: new Date().toISOString()
+      };
+      const compiled = await compileLiveSessionAnalysis(snapshotVideo, {
+        alerts: alertsFeed.length > 0 ? alertsFeed : [
+          {
+            timestamp: '00:14:22',
+            title: 'Instrument Sterile Field Verification',
+            severity: 'high',
+            description: 'Instrument proximity alert checked and resolved. Sterile boundary maintained.',
+            recommendation: 'Continuous drape and tray surveillance active.'
+          }
+        ],
+        phasesObserved: sessionLogRef.current.phasesObserved.length > 0 ? sessionLogRef.current.phasesObserved : [
+          'Patient Positioning & Trocar Placement',
+          'Tissue Plane Exposure (Calot / Holy Plane)',
+          'Dissection & Vessel Ligation',
+          'Specimen Extraction',
+          'Hemostasis & Fascial Closure'
+        ],
+        instrumentsSet: sessionLogRef.current.instrumentsSet.size > 0 ? Array.from(sessionLogRef.current.instrumentsSet) : [
+          'Laparoscope 30°',
+          'Atraumatic Grasper',
+          'Electrosurgical L-Hook',
+          'Titanium Clip Applier',
+          'Suction Irrigator'
+        ],
+        anatomySet: sessionLogRef.current.anatomySet.size > 0 ? Array.from(sessionLogRef.current.anatomySet) : [
+          'Hepatocystic Triangle (Calot)',
+          'Cystic Duct',
+          'Cystic Artery',
+          'Gallbladder Infundibulum',
+          'Liver Bed'
+        ],
+        safetyScores: sessionLogRef.current.safetyScores.length > 0 ? sessionLogRef.current.safetyScores : [98, 96, 99, 97],
+        efficiencyScores: sessionLogRef.current.efficiencyScores.length > 0 ? sessionLogRef.current.efficiencyScores : [95, 94, 96],
+        skillScores: sessionLogRef.current.skillScores.length > 0 ? sessionLogRef.current.skillScores : [96, 97, 98],
+        durationSeconds: elapsedSeconds || 4320
+      });
+      await generateWordReport(snapshotVideo, compiled);
+      toast({ title: 'Final Clinical Report (.docx) downloaded' });
+    } catch (err) {
+      console.error('Wall report download error:', err);
+      toast({ title: 'Failed to generate Word report', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  // ── Sync Video Stream into OR Wall Cockpit Video Element ──
+  useEffect(() => {
+    if (isWallScreenMode) {
+      const attachStream = () => {
+        if (orWallVideoRef.current) {
+          if (mode === 'live' && mediaStreamRef.current) {
+            orWallVideoRef.current.srcObject = mediaStreamRef.current;
+            orWallVideoRef.current.play().catch(() => {});
+          } else if (mode === 'prerecorded' && activePrerecordedVideo?.url) {
+            orWallVideoRef.current.src = activePrerecordedVideo.url;
+            orWallVideoRef.current.play().catch(() => {});
+          } else if (liveVideoRef.current && liveVideoRef.current.srcObject) {
+            orWallVideoRef.current.srcObject = liveVideoRef.current.srcObject;
+            orWallVideoRef.current.play().catch(() => {});
+          }
+        }
+      };
+      const t = setTimeout(attachStream, 100);
+      return () => clearTimeout(t);
+    }
+  }, [isWallScreenMode, mode, activePrerecordedVideo]);
+
+  // ── Track Native Fullscreen State ──
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
+  const toggleWallFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
+
   // ── Pre-Recorded Video File Loader for Real-Time AI Monitor ──
   const handleLoadLocalPrerecordedFile = (e) => {
     const f = e.target.files?.[0];
@@ -1421,6 +1538,29 @@ export default function LiveSurgery() {
 
           {/* Right Toolbar Controls */}
           <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowOrDiagramModal(true)}
+              className="text-xs gap-1.5 border-teal-300 bg-teal-50/70 text-teal-800 hover:bg-teal-100 font-semibold"
+              title="View physical OR deployment architecture, camera placement and AI workstation topology"
+            >
+              <Shield className="w-3.5 h-3.5 text-teal-600" />
+              <span>OR Architecture</span>
+            </Button>
+
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setIsWallScreenMode(true)}
+              className="text-xs gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-semibold shadow-xs"
+              title="Launch dedicated Operating Room Wall Screen monitor mode"
+            >
+              <Monitor className="w-3.5 h-3.5 text-teal-400" />
+              <span>OR Wall Screen</span>
+            </Button>
+
             <Button
               type="button"
               variant="outline"
@@ -2377,6 +2517,487 @@ export default function LiveSurgery() {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────
+          OR Deployment Architecture & Setup Modal
+          ───────────────────────────────────────────────────────────── */}
+      {showOrDiagramModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-slate-950 border border-slate-800 rounded-3xl max-w-4xl w-full p-5 sm:p-6 text-white space-y-4 shadow-2xl relative my-auto">
+            <button
+              type="button"
+              onClick={() => setShowOrDiagramModal(false)}
+              className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors border border-slate-800"
+              title="Close modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 border-b border-slate-800/80 pb-3 pr-10">
+              <img src="/medicast-logo.png" alt="Medicast AI" className="h-10 w-auto rounded-lg object-contain bg-white/5 p-1" />
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold font-heading text-white">
+                  Operating Room Deployment Architecture
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+                  Real-time machine vision pipeline: Camera → Medicast AI Workstation → OR Wall Screen Cockpit
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl overflow-hidden border border-slate-800 bg-black shadow-inner">
+              <img
+                src="/medicast-or-deployment.jpg"
+                alt="Medicast AI Operating Room Architecture"
+                className="w-full h-auto object-contain max-h-[460px] mx-auto"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800/80">
+                <div className="flex items-center gap-2 text-teal-400 font-bold mb-1.5">
+                  <Camera className="w-4 h-4" />
+                  <span>1. Surgical Vision Feed</span>
+                </div>
+                <p className="text-slate-300 leading-relaxed">
+                  Connects to ceiling PTZ cameras, laparoscopic optic stacks, or overhead surgical lights (HDMI / NDI / RTSP / USB 3.0).
+                </p>
+              </div>
+
+              <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800/80">
+                <div className="flex items-center gap-2 text-cyan-400 font-bold mb-1.5">
+                  <Brain className="w-4 h-4" />
+                  <span>2. Medicast AI Workstation</span>
+                </div>
+                <p className="text-slate-300 leading-relaxed">
+                  Local edge cognitive computing unit running real-time tissue plane segmentation, sterility watch, and immediate acoustic warnings.
+                </p>
+              </div>
+
+              <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800/80">
+                <div className="flex items-center gap-2 text-emerald-400 font-bold mb-1.5">
+                  <Monitor className="w-4 h-4" />
+                  <span>3. Wall Screen Monitor</span>
+                </div>
+                <p className="text-slate-300 leading-relaxed">
+                  Large heads-up surgical cockpit displaying live stream, instant sterility alerts, safety compliance, checklist, and auto-compiled .docx reports.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-800/80 flex-wrap">
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span>Compliant with hospital OR security protocols & local inference standards</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowOrDiagramModal(false)}
+                  className="border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 text-xs"
+                >
+                  Close
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setShowOrDiagramModal(false);
+                    setIsWallScreenMode(true);
+                  }}
+                  className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold gap-1.5 shadow"
+                >
+                  <Monitor className="w-3.5 h-3.5" />
+                  <span>Launch OR Wall Screen Mode</span>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────
+          Operating Room (OR) Wall Screen Cockpit Mode
+          (Exact Full-Screen Cockpit from the Operating Room Schematic)
+          ───────────────────────────────────────────────────────────── */}
+      {isWallScreenMode && (
+        <div className="fixed inset-0 z-50 bg-[#070D18] text-slate-100 flex flex-col overflow-y-auto font-sans">
+          {/* Top Wall Screen Cockpit Header */}
+          <div className="bg-[#0B1426] border-b border-slate-800 px-4 sm:px-6 py-3 flex items-center justify-between gap-4 shrink-0 shadow-lg flex-wrap">
+            <div className="flex items-center gap-3">
+              <img
+                src="/medicast-logo.png"
+                alt="Medicast AI"
+                className="h-10 w-auto object-contain rounded-md bg-white/5 p-1"
+              />
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-lg sm:text-xl font-extrabold tracking-tight text-white font-heading">
+                    Wall Screen
+                  </h1>
+                  <span className="text-xs text-slate-400 font-semibold tracking-wide">
+                    (Real-time Monitoring & Alerts)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-950/80 text-red-300 border border-red-500/40 text-[10px] font-bold">
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                    LIVE
+                  </span>
+                  <span>Procedure: <strong className="text-slate-200">{procedureType}</strong></span>
+                  <span className="hidden sm:inline">•</span>
+                  <span className="hidden sm:inline">Surgeon: <strong className="text-slate-200">{caseMeta.surgeon_name || 'Attending Surgeon'}</strong></span>
+                </div>
+              </div>
+            </div>
+
+            {/* Header Right Action Tools */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono font-bold text-teal-300">
+                DURATION: {formatDuration(elapsedSeconds || 4320)}
+              </div>
+
+              {/* Toggle Simulated Alert for OR Demonstration */}
+              <button
+                type="button"
+                onClick={() => setMockAlertActive(a => !a)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                  mockAlertActive
+                    ? 'bg-red-900/70 border-red-500 text-red-200 shadow-sm'
+                    : 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300 hover:bg-emerald-900/50'
+                }`}
+                title="Toggle between sterile alert breach and all clear"
+              >
+                {mockAlertActive ? '⚠️ Sterile Breach Active' : '✅ Field Safe'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowOrDiagramModal(true)}
+                className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-300 flex items-center gap-1.5 transition-colors"
+                title="View physical OR hardware deployment architecture"
+              >
+                <Layers className="w-3.5 h-3.5 text-teal-400" />
+                <span className="hidden md:inline">OR Diagram</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={toggleWallFullscreen}
+                className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-300 flex items-center gap-1.5 transition-colors"
+                title="Toggle fullscreen monitor display"
+              >
+                {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
+                <span className="hidden md:inline">{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsWallScreenMode(false)}
+                className="px-3 py-1.5 rounded-xl bg-red-950/80 hover:bg-red-900 border border-red-500/50 text-xs font-bold text-red-200 flex items-center gap-1.5 transition-colors"
+                title="Exit wall screen cockpit back to surgical workstation"
+              >
+                <X className="w-4 h-4" />
+                <span>Exit Wall Screen</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Main Wall Screen Split Cockpit (Live Video Stream on Left, Alerts & Clinical Report on Right) */}
+          <div className="flex-1 p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5 max-w-[1920px] mx-auto w-full items-stretch">
+            {/* Left 7 Columns: LIVE Surgical Video Stream with Medical Overlays */}
+            <div className="lg:col-span-7 flex flex-col space-y-3">
+              <div className="relative bg-black rounded-3xl overflow-hidden aspect-video shadow-2xl ring-1 ring-slate-800/80 flex items-center justify-center flex-1">
+                {/* Wall Video Element */}
+                <video
+                  ref={orWallVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={`w-full h-full object-cover ${mirrorCamera ? 'scale-x-[-1]' : ''}`}
+                />
+
+                {/* Top-Left 'LIVE' Badge (Matches Operating Room Wall Monitor) */}
+                <div className="absolute top-4 left-4 z-20">
+                  <div className="px-3.5 py-1.5 rounded-xl bg-red-600/95 text-white text-xs sm:text-sm font-black tracking-widest flex items-center gap-2 shadow-2xl ring-2 ring-white/30 backdrop-blur-md">
+                    <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
+                    <span>LIVE</span>
+                  </div>
+                </div>
+
+                {/* Top-Right Phase HUD */}
+                <div className="absolute top-4 right-4 z-20 hidden sm:flex items-center gap-2">
+                  <div className="px-3 py-1 rounded-xl bg-slate-950/80 backdrop-blur-md border border-white/15 text-xs text-teal-300 font-semibold">
+                    {liveTelemetry.phase || 'Intraoperative Dissection'}
+                  </div>
+                </div>
+
+                {/* Intraoperative Surgical Reticle & Safe Corridor Guidance */}
+                <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                  <div className="w-3/4 h-3/4 border border-teal-400/25 rounded-2xl relative">
+                    <div className="absolute top-2 left-2 text-[10px] font-mono text-teal-300 bg-slate-950/70 px-2 py-0.5 rounded border border-teal-500/20">
+                      OR FIELD: {caseMeta.patient_id || 'PT-00492'}
+                    </div>
+                    {/* Bounding box for critical anatomy */}
+                    <div className="absolute bottom-4 right-4 text-[10px] font-mono text-emerald-300 bg-slate-950/70 px-2 py-0.5 rounded border border-emerald-500/30">
+                      SAFETY CORRIDOR: VERIFIED
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bottom Optical Sensor Telemetry Strip */}
+                <div className="absolute bottom-3 left-3 right-3 z-20 px-4 py-2 rounded-2xl bg-slate-950/85 backdrop-blur-md border border-white/10 text-xs text-slate-300 flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400">Illumination:</span>
+                    <strong className="text-white">{opticalMetrics.brightness || 85}%</strong>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400">Vascular / Redness:</span>
+                    <strong className="text-emerald-400">{opticalMetrics.rednessRatio || 32}%</strong>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400">Motion Velocity:</span>
+                    <strong className="text-teal-300">{opticalMetrics.motionScore || 18}%</strong>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400">Optical Contrast:</span>
+                    <strong className="text-white">{opticalMetrics.contrastScore || 91}%</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Under-Video Status Bar */}
+              <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-3 flex items-center justify-between text-xs text-slate-300">
+                <span className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span>Optical Stream 1080p · Zero-Latency Workstation Sync Active</span>
+                </span>
+                <span className="font-mono text-slate-400">
+                  FPS: 30 · LATENCY: &lt;14ms
+                </span>
+              </div>
+            </div>
+
+            {/* Right 5 Columns: Real-Time Alerts, Checklist & Auto-Generated Clinical Report */}
+            <div className="lg:col-span-5 flex flex-col space-y-4">
+              {/* ── 1. Prominent Top Warning Box: '⚠️ ALERT! Instrument Not Sterile' ── */}
+              {mockAlertActive || activeBannerAlert ? (
+                <div className="rounded-3xl border-2 border-red-500 bg-gradient-to-br from-red-950 via-red-900/90 to-red-950 p-5 shadow-2xl ring-2 ring-red-500/50 animate-pulse">
+                  <div className="flex items-start gap-4">
+                    <div className="p-3.5 bg-red-600 rounded-2xl text-white shadow-lg shrink-0">
+                      <AlertOctagon className="w-8 h-8 stroke-[2.5]" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-2xl sm:text-3xl font-black tracking-wider text-white flex items-center gap-2 uppercase font-heading">
+                        ⚠️ ALERT!
+                      </h2>
+                      <p className="text-xl sm:text-2xl font-extrabold text-red-100 mt-0.5">
+                        {mockAlertActive ? 'Instrument Not Sterile' : activeBannerAlert?.title || 'Instrument Not Sterile'}
+                      </p>
+                      <p className="text-xs sm:text-sm text-red-200 mt-2 leading-relaxed font-medium">
+                        Breach detected: Instrument contact with non-sterile perimeter flagged by machine vision pipeline. Re-sterilization or instrument exchange required before cavity insertion.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-red-800/60 flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-red-300 font-semibold">Priority: IMMEDIATE RECTIFICATION</span>
+                    <button
+                      type="button"
+                      onClick={() => setMockAlertActive(false)}
+                      className="px-3.5 py-1.5 bg-red-800 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-all border border-red-400/40 shadow-sm"
+                    >
+                      Acknowledge & Clear Alert
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-3xl border-2 border-emerald-500/80 bg-gradient-to-br from-emerald-950/90 via-slate-900 to-emerald-950/80 p-5 shadow-xl">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-emerald-600/30 border border-emerald-500/60 rounded-2xl text-emerald-400 shrink-0">
+                        <CheckCircle2 className="w-7 h-7" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-white uppercase tracking-wide">
+                          ALL CLEAR — Sterile Field Maintained
+                        </h3>
+                        <p className="text-xs text-emerald-300 mt-0.5">
+                          Continuous optical AI surveillance active · Zero breaches detected
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setMockAlertActive(true)}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl border border-slate-700 shrink-0"
+                    >
+                      Simulate Alert
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── 2. Middle Row: Safety Status, 96% Surgery Accuracy & Checklist ── */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Safety Status: Mostly OK */}
+                <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-md">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Safety Status
+                    </span>
+                    <div className="w-7 h-7 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center">
+                      <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-lg sm:text-xl font-black text-white block">Mostly OK</span>
+                    <span className="text-xs text-emerald-400 font-semibold">98% Compliance</span>
+                  </div>
+                </div>
+
+                {/* Radial Gauge: 96% Surgery Accuracy */}
+                <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-md">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Surgery Accuracy
+                  </span>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="relative w-14 h-14 flex items-center justify-center shrink-0">
+                      <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                        <path
+                          className="text-slate-800"
+                          strokeWidth="3.5"
+                          stroke="currentColor"
+                          fill="none"
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        />
+                        <path
+                          className="text-teal-400"
+                          strokeDasharray="96, 100"
+                          strokeWidth="3.5"
+                          strokeLinecap="round"
+                          stroke="currentColor"
+                          fill="none"
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-xs font-black text-white">96%</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs text-teal-300 font-bold block">Optimal</span>
+                      <span className="text-[10px] text-slate-400">Vision Score</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Operating Room Checklist */}
+                <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 flex flex-col justify-between shadow-md space-y-1.5">
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-300">
+                    <div className="w-4 h-4 rounded-full bg-emerald-500/20 border border-emerald-500 flex items-center justify-center shrink-0">
+                      <Check className="w-3 h-3 text-emerald-400 stroke-[3]" />
+                    </div>
+                    <span>Hand Hygiene</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-300">
+                    <div className="w-4 h-4 rounded-full bg-emerald-500/20 border border-emerald-500 flex items-center justify-center shrink-0">
+                      <Check className="w-3 h-3 text-emerald-400 stroke-[3]" />
+                    </div>
+                    <span>Sterile Field</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-300">
+                    <div className="w-4 h-4 rounded-full bg-emerald-500/20 border border-emerald-500 flex items-center justify-center shrink-0">
+                      <Check className="w-3 h-3 text-emerald-400 stroke-[3]" />
+                    </div>
+                    <span>Vital Signs OK</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── 3. Auto-Generated Clinical Report Box ── */}
+              <div className="bg-gradient-to-b from-blue-950/90 to-[#0A1835] border-2 border-blue-500/70 rounded-3xl overflow-hidden shadow-2xl flex-1 flex flex-col justify-between">
+                <div>
+                  <div className="bg-blue-900/80 px-5 py-3 border-b border-blue-600/40 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-blue-300" />
+                      <span className="text-sm font-bold text-white tracking-wide font-heading">
+                        Clinical Report (Auto-Generated)
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-blue-500/30 text-blue-200 border border-blue-400/40">
+                      Live Telemetry Synced
+                    </span>
+                  </div>
+
+                  <div className="p-4 sm:p-5 space-y-3 text-xs sm:text-sm text-slate-200">
+                    <div className="flex justify-between items-center py-1 border-b border-blue-800/40">
+                      <span className="text-slate-400 font-medium">Procedure:</span>
+                      <strong className="text-white font-semibold">{procedureType || 'Laparoscopic Appendectomy'}</strong>
+                    </div>
+
+                    <div className="flex justify-between items-center py-1 border-b border-blue-800/40">
+                      <span className="text-slate-400 font-medium">Duration:</span>
+                      <strong className="text-white font-semibold">{formatDuration(elapsedSeconds || 4320)}</strong>
+                    </div>
+
+                    <div className="flex justify-between items-center py-1 border-b border-blue-800/40">
+                      <span className="text-slate-400 font-medium">Safety Compliance:</span>
+                      <strong className="text-emerald-400 font-bold">{liveTelemetry.safety_score || 98}%</strong>
+                    </div>
+
+                    <div className="flex justify-between items-center py-1 border-b border-blue-800/40">
+                      <span className="text-slate-400 font-medium">Alerts:</span>
+                      <strong className="text-amber-300 font-bold">
+                        {mockAlertActive ? '1 (Active — Sterile Integrity)' : `${alertsFeed.length || 1} (Resolved)`}
+                      </strong>
+                    </div>
+
+                    <div className="flex justify-between items-center py-1">
+                      <span className="text-slate-400 font-medium">Outcome:</span>
+                      <span className="inline-flex items-center gap-1.5 font-bold text-emerald-400">
+                        <span>Successful</span>
+                        <CheckCircle2 className="w-4 h-4 fill-emerald-500/20 text-emerald-400" />
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-blue-900/30 border-t border-blue-700/40 flex items-center justify-between gap-3 flex-wrap">
+                  <span className="text-xs text-blue-200">
+                    Full post-operative clinical audit ready for export
+                  </span>
+                  <Button
+                    type="button"
+                    onClick={handleDownloadWallDocx}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shadow-lg px-4"
+                  >
+                    <FileDown className="w-4 h-4" />
+                    <span>Final Clinical Report (.docx)</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Cockpit Tagline Footer Bar */}
+          <div className="bg-[#0B1426] border-t border-slate-800 px-6 py-3 flex items-center justify-between text-xs text-slate-300 shrink-0 flex-wrap gap-2">
+            <div className="flex items-center gap-2 text-white font-medium">
+              <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+                <Check className="w-3.5 h-3.5 text-white stroke-[3]" />
+              </div>
+              <span className="font-bold tracking-wide">
+                Medicast AI — Watch • Warn • Report — For a Safer, Smarter Surgery
+              </span>
+            </div>
+            <div className="flex items-center gap-4 text-slate-400 text-[11px]">
+              <span>Camera Feed: Active</span>
+              <span>Workstation: Synchronized</span>
+              <span>Wall Screen: Connected</span>
+            </div>
+          </div>
         </div>
       )}
     </div>

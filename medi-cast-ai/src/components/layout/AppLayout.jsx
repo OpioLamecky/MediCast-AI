@@ -107,16 +107,18 @@ export default function AppLayout() {
       {/* ── Left Sidebar (Dashboard Navigation & Integrated Recent Chats) ── */}
       <aside className="w-64 bg-white border-r border-stone-200/80 flex flex-col fixed inset-y-0 left-0 h-full z-30 max-md:hidden">
         {/* Brand Header */}
-        <div className="p-5 border-b border-stone-100 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center shrink-0">
-              <Activity className="w-5 h-5 text-white" />
+        <div className="p-4 border-b border-stone-100 shrink-0">
+          <Link to="/" className="flex items-center gap-3 group">
+            <img
+              src="/medicast-logo.png"
+              alt="MediCast AI"
+              className="h-10 w-auto object-contain rounded-lg shadow-2xs group-hover:scale-105 transition-transform"
+            />
+            <div className="min-w-0">
+              <h1 className="text-base font-bold tracking-tight text-slate-900 font-heading">MediCast AI</h1>
+              <p className="text-[10px] text-teal-600 font-semibold tracking-wider uppercase">Surgical Intelligence</p>
             </div>
-            <div>
-              <h1 className="text-lg font-semibold tracking-tight text-slate-900 font-heading">MediCast</h1>
-              <p className="text-[11px] text-slate-400 font-medium tracking-widest uppercase">AI Surgery</p>
-            </div>
-          </div>
+          </Link>
         </div>
 
         {/* Primary Navigation Links */}
@@ -283,13 +285,15 @@ export default function AppLayout() {
       </aside>
 
       {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b border-slate-200 z-30 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center">
-            <Activity className="w-4 h-4 text-white" />
-          </div>
-          <span className="font-semibold text-slate-900">MediCast</span>
-        </div>
+      <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b border-slate-200 z-30 px-4 py-2.5 flex items-center justify-between">
+        <Link to="/" className="flex items-center gap-2">
+          <img
+            src="/medicast-logo.png"
+            alt="MediCast AI"
+            className="h-8 w-auto object-contain rounded-md"
+          />
+          <span className="font-bold text-slate-900 text-sm">MediCast AI</span>
+        </Link>
         <div>
           {isAuthenticated ? (
             <button

@@ -216,16 +216,20 @@ export default function Register() {
       {/* ── Main Compact Register Card ── */}
       <div className="w-full max-w-[380px] bg-white rounded-2xl shadow-xl border border-stone-200/90 p-6 sm:p-7 space-y-4">
         {/* Brand Header */}
-        <div className="text-center space-y-1">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-600 to-cyan-700 flex items-center justify-center mx-auto shadow-md shadow-teal-700/20 text-white">
-            <Activity className="w-5 h-5 text-white" />
+        <div className="text-center space-y-2">
+          <img
+            src="/medicast-logo.png"
+            alt="MediCast AI"
+            className="h-14 w-auto object-contain mx-auto drop-shadow-xs"
+          />
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-stone-900 font-heading">
+              Create Account
+            </h1>
+            <p className="text-xs text-stone-500">
+              Intraoperative Surgical Intelligence
+            </p>
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-stone-900 font-heading">
-            Create Account
-          </h1>
-          <p className="text-xs text-stone-500">
-            Intraoperative Surgical Intelligence
-          </p>
         </div>
 
         {/* Error Alert */}
