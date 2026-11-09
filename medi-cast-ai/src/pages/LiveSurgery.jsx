@@ -11,6 +11,7 @@ import {
   compileLiveSessionAnalysis
 } from '@/api/aiService';
 import { generateWordReport } from '@/utils/reportGenerator';
+import { makeVideoBlobSeekable } from '@/utils/webmSeekable';
 import {
   Radio,
   Video,
@@ -268,7 +269,6 @@ export default function LiveSurgery() {
   // ── Operating Room (OR) Wall Screen Cockpit & Deployment State ──
   const [isWallScreenMode, setIsWallScreenMode] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showOrDiagramModal, setShowOrDiagramModal] = useState(false);
   const orWallVideoRef = useRef(null);
 
   // ── Refs ──
@@ -1000,8 +1000,13 @@ export default function LiveSurgery() {
 
     if (recordedChunksRef.current.length > 0) {
       const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
-      const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+      let blob = new Blob(recordedChunksRef.current, { type: mimeType });
       if (blob.size > 0) {
+        try {
+          blob = await makeVideoBlobSeekable(blob, Math.max(1, elapsedSeconds));
+        } catch (e) {
+          console.warn('[LiveSurgery] Seekable patch skipped:', e);
+        }
         const blobUrl = URL.createObjectURL(blob);
         setRecordedBlobUrl(blobUrl);
         setRecordedFile(new File([blob], `live_surgery_stopped_${Date.now()}.${ext}`, { type: mimeType }));
@@ -1061,7 +1066,14 @@ export default function LiveSurgery() {
       setIsPaused(false);
 
       const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
-      const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+      let blob = new Blob(recordedChunksRef.current, { type: mimeType });
+      if (blob.size > 0 && Math.max(1, elapsedSeconds) > 0) {
+        try {
+          blob = await makeVideoBlobSeekable(blob, Math.max(1, elapsedSeconds));
+        } catch (e) {
+          console.warn('[LiveSurgery] Finalize seekable patch skipped:', e);
+        }
+      }
       const blobUrl = blob.size > 0 ? URL.createObjectURL(blob) : '';
       const timestampLabel = new Date().toISOString().slice(0, 16).replace('T', ' ');
       const autoTitle = caseMeta.title?.trim() || `Live ${procedureType} (${timestampLabel})`;
@@ -1173,16 +1185,40 @@ export default function LiveSurgery() {
   };
 
   // ── Download Recorded Camera Video File (.webm / .mp4) ──
-  const handleDownloadRecordedVideo = () => {
-    if (!recordedBlobUrl) return;
-    const a = document.createElement('a');
-    a.href = recordedBlobUrl;
-    const ext = recordedFile?.name?.split('.').pop() || 'webm';
-    const cleanName = (caseMeta.title || procedureType).replace(/[^a-zA-Z0-9_-]/g, '_');
-    a.download = `MediCast_Live_${cleanName}.${ext}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  const handleDownloadRecordedVideo = async () => {
+    if (!recordedFile && !recordedBlobUrl) return;
+    try {
+      let blobToDownload = recordedFile;
+      if (blobToDownload && Math.max(1, elapsedSeconds) > 0) {
+        blobToDownload = await makeVideoBlobSeekable(blobToDownload, Math.max(1, elapsedSeconds));
+      }
+      const downloadUrl = blobToDownload ? URL.createObjectURL(blobToDownload) : recordedBlobUrl;
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      const ext = recordedFile?.name?.split('.').pop() || 'webm';
+      const cleanName = (caseMeta.title || procedureType).replace(/[^a-zA-Z0-9_-]/g, '_');
+      a.download = `MediCast_Live_${cleanName}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      if (blobToDownload) {
+        setTimeout(() => URL.revokeObjectURL(downloadUrl), 30000);
+      }
+      toast({
+        title: 'Video Download Started',
+        description: 'Video includes scrubbable seek controls for media players.'
+      });
+    } catch (err) {
+      console.warn('[LiveSurgery] Download fallback:', err);
+      const a = document.createElement('a');
+      a.href = recordedBlobUrl;
+      const ext = recordedFile?.name?.split('.').pop() || 'webm';
+      const cleanName = (caseMeta.title || procedureType).replace(/[^a-zA-Z0-9_-]/g, '_');
+      a.download = `MediCast_Live_${cleanName}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
   };
 
   // ── Download Word Audit Report (.docx) ──
@@ -1612,17 +1648,18 @@ export default function LiveSurgery() {
 
           {/* Right Toolbar Controls */}
           <div className="flex items-center gap-2 flex-wrap shrink-0">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setShowOrDiagramModal(true)}
-              className="text-xs gap-1.5 border-teal-300 bg-teal-50/70 text-teal-800 hover:bg-teal-100 font-semibold"
-              title="View physical OR deployment architecture, camera placement and AI workstation topology"
-            >
-              <Shield className="w-3.5 h-3.5 text-teal-600" />
-              <span>OR Architecture</span>
-            </Button>
+            <Link to="/architecture">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs gap-1.5 border-teal-300 bg-teal-50/70 text-teal-800 hover:bg-teal-100 font-semibold"
+                title="View physical OR deployment architecture, camera placement and AI workstation topology"
+              >
+                <Layers className="w-3.5 h-3.5 text-teal-600" />
+                <span>OR Architecture</span>
+              </Button>
+            </Link>
 
             <Button
               type="button"
@@ -2595,104 +2632,6 @@ export default function LiveSurgery() {
       )}
 
       {/* ─────────────────────────────────────────────────────────────
-          OR Deployment Architecture & Setup Modal
-          ───────────────────────────────────────────────────────────── */}
-      {showOrDiagramModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200">
-          <div className="bg-slate-950 border border-slate-800 rounded-3xl max-w-4xl w-full p-5 sm:p-6 text-white space-y-4 shadow-2xl relative my-auto">
-            <button
-              type="button"
-              onClick={() => setShowOrDiagramModal(false)}
-              className="absolute top-4 right-4 p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors border border-slate-800"
-              title="Close modal"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center gap-3 border-b border-slate-800/80 pb-3 pr-10">
-              <img src="/medicast-logo.png" alt="Medicast AI" className="h-10 w-auto rounded-lg object-contain bg-white/5 p-1" />
-              <div>
-                <h2 className="text-xl sm:text-2xl font-bold font-heading text-white">
-                  Operating Room Deployment Architecture
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-                  Real-time machine vision pipeline: Camera → Medicast AI Workstation → OR Wall Screen Cockpit
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-2xl overflow-hidden border border-slate-800 bg-black shadow-inner">
-              <img
-                src="/medicast-or-deployment.jpg"
-                alt="Medicast AI Operating Room Architecture"
-                className="w-full h-auto object-contain max-h-[460px] mx-auto"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-              <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800/80">
-                <div className="flex items-center gap-2 text-teal-400 font-bold mb-1.5">
-                  <Camera className="w-4 h-4" />
-                  <span>1. Surgical Vision Feed</span>
-                </div>
-                <p className="text-slate-300 leading-relaxed">
-                  Connects to ceiling PTZ cameras, laparoscopic optic stacks, or overhead surgical lights (HDMI / NDI / RTSP / USB 3.0).
-                </p>
-              </div>
-
-              <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800/80">
-                <div className="flex items-center gap-2 text-cyan-400 font-bold mb-1.5">
-                  <Brain className="w-4 h-4" />
-                  <span>2. Medicast AI Workstation</span>
-                </div>
-                <p className="text-slate-300 leading-relaxed">
-                  Local edge cognitive computing unit running real-time tissue plane segmentation, sterility watch, and immediate acoustic warnings.
-                </p>
-              </div>
-
-              <div className="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800/80">
-                <div className="flex items-center gap-2 text-emerald-400 font-bold mb-1.5">
-                  <Monitor className="w-4 h-4" />
-                  <span>3. Wall Screen Monitor</span>
-                </div>
-                <p className="text-slate-300 leading-relaxed">
-                  Large heads-up surgical cockpit displaying live stream, instant sterility alerts, safety compliance, checklist, and auto-compiled .docx reports.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-800/80 flex-wrap">
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span>Compliant with hospital OR security protocols & local inference standards</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowOrDiagramModal(false)}
-                  className="border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 text-xs"
-                >
-                  Close
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => {
-                    setShowOrDiagramModal(false);
-                    setIsWallScreenMode(true);
-                  }}
-                  className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold gap-1.5 shadow"
-                >
-                  <Monitor className="w-3.5 h-3.5" />
-                  <span>Launch OR Wall Screen Mode</span>
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─────────────────────────────────────────────────────────────
           Operating Room (OR) Wall Screen Cockpit Mode
           (Real-Time Monitoring, Sterility Alerts & Auto-Compiled Report)
           ───────────────────────────────────────────────────────────── */}
@@ -2785,15 +2724,16 @@ export default function LiveSurgery() {
                 </button>
               )}
 
-              <button
-                type="button"
-                onClick={() => setShowOrDiagramModal(true)}
+              <Link
+                to="/architecture"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-300 flex items-center gap-1.5 transition-colors"
-                title="View physical OR hardware deployment architecture"
+                title="View physical OR hardware deployment architecture page"
               >
                 <Layers className="w-3.5 h-3.5 text-teal-400" />
-                <span className="hidden xl:inline">OR Diagram</span>
-              </button>
+                <span className="hidden xl:inline">OR Architecture</span>
+              </Link>
 
               <button
                 type="button"
