@@ -57,7 +57,7 @@ const TIMELINE = [
     label: 'Sterile Field Established',
     duration: 5000,
     highlight: 'bed',
-    narration: 'The patient is draped and the sterile boundary perimeter is set. Medicast AI begins optical tracking of the drape edges, instrument tray, and the surgeon's gloved hands.',
+    narration: "The patient is draped and the sterile boundary perimeter is set. Medicast AI begins optical tracking of the drape edges, instrument tray, and the surgeon's gloved hands.",
     wallStatus: null,
     safetyPct: null,
     accuracyPct: null,
