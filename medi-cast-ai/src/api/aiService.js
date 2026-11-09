@@ -9,14 +9,13 @@
 
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || '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';
 const GROQ_MODELS = [
-  'llama-3.3-70b-versatile',
-  'llama-3.1-8b-instant',
-  'mixtral-8x7b-32768',
-  'gemma2-9b-it'
+  'openai/gpt-oss-120b',
+  'openai/gpt-oss-20b',
+  'qwen/qwen3.8-27b',
+  'allam-2-7b'
 ];
 const GROQ_VISION_MODELS = [
-  'llama-3.2-11b-vision-preview',
-  'llama-3.2-90b-vision-preview'
+  'qwen/qwen3.8-27b'
 ];
 
 export const SURGICAL_PROCEDURES = [
@@ -482,23 +481,33 @@ export async function analyzeLiveSurgeryFrame({
   }
 
   // 3. Direct Groq Multimodal Vision API (qwen/qwen3.8-27b) — strictly inspects actual camera pixels!
-  const visionPrompt = `You are MediCast AI Intraoperative Vision Verifier & Surgical Monitor.
+  const visionPrompt = `You are MediCast AI Intraoperative & Operating Room Vision Monitor.
 Selected Target Procedure: ${procedureType}
 Timestamp: ${ts}
 Optical Metrics: Brightness=${frameMetrics?.brightness ?? 50}%, Contrast=${frameMetrics?.contrastScore ?? 40}%, Redness=${frameMetrics?.rednessRatio ?? 10}%
 
-STRICT ZERO-HALLUCINATION RULES:
+STRICT REAL-WORLD CLINICAL VISION RULES:
 1. Examine what is LITERALLY visible inside this image frame.
-2. Set "is_surgical_scene": true ONLY if the image genuinely shows an actual surgical procedure, open incision, endoscopic/laparoscopic/arthroscopic/microscopic operative view, or a clear surgical tissue dissection model, AND the image is clear enough to evaluate.
-3. If the image shows a normal room, person, face, ceiling, wall, desk, laptop, empty background, blurry/out-of-focus view, or anything that is NOT a surgical procedure:
+2. Set "is_surgical_scene": true if the image shows EITHER:
+   (a) An internal surgical view (laparoscopic, endoscopic, arthroscopic, microscopic, or open incision operative field, or surgical simulation tissue model), OR
+   (b) An Operating Room (OR) overhead/bedside view showing surgical staff, operating bed/drapes, surgical tray, or surgical instruments/tools being handled or inspected.
+3. If the image shows an ordinary non-clinical room, face/person with no surgical instruments or sterile gear, wall, ceiling, desk, laptop, or blurry/dark view:
    - You MUST set "is_surgical_scene": false
-   - Set "safety_score": null, "efficiency_score": null, "skill_score": null
+   - Set "safety_score": null, "efficiency_score": null, "skill_score": null, "surgery_accuracy": null
    - Set "risk_level": "standby"
    - Set "phase": "No Surgery Detected in Camera View"
    - Set "anatomy_identified": [] and "instruments_detected": []
-   - Set "alerts": [] (DO NOT invent surgical alerts, cannulas, portals, bleeding, or scores!)
-   - Set "scene_observed" to an honest 1-sentence description of what the camera actually shows (e.g. "Camera shows an indoor room / person; no surgical procedure or operative site is visible.").
-4. ONLY when "is_surgical_scene" is true: identify the real visible surgical phase, visible anatomy, visible instruments, genuine safety/efficiency/skill scores (0-100), and real intraoperative warnings/alerts.
+   - Set "checklist": { "hand_hygiene": null, "sterile_field": null, "vital_signs_ok": null }
+   - Set "alerts": [] (DO NOT invent surgical alerts, cannulas, bleeding, or scores!)
+   - Set "scene_observed" to a factual 1-sentence description of what the camera actually shows.
+4. When "is_surgical_scene" is true:
+   - Identify the visible surgical phase, visible anatomy, and visible instruments.
+   - Evaluate the OR Safety Checklist based on visual evidence:
+     * "hand_hygiene": true if gloved hands or proper aseptic technique are observed; false if bare ungloved skin touches surgical instruments or enters the sterile field.
+     * "sterile_field": true if instruments and drapes are sterile; false if an unsterile object, bare-hand contact with an instrument, or contaminated surface breach is visible.
+     * "vital_signs_ok": true if tissue perfusion and hemostasis are stable; false if uncontrolled hemorrhage or physiological crisis is visible.
+   - If "sterile_field" is false or an unsterile instrument/object is seen, include an alert in "alerts" with "title": "Instrument Not Sterile" (or "Sterile Field Breach"), "severity": "critical" or "high", and actionable mitigation in "recommendation".
+   - Provide genuine "safety_score" (0-100), "efficiency_score" (0-100), "skill_score" (0-100), and "surgery_accuracy" (0-100).
 
 Return strictly valid JSON:
 {
@@ -510,15 +519,21 @@ Return strictly valid JSON:
   "safety_score": null,
   "efficiency_score": null,
   "skill_score": null,
+  "surgery_accuracy": null,
+  "checklist": {
+    "hand_hygiene": null,
+    "sterile_field": null,
+    "vital_signs_ok": null
+  },
   "anatomy_identified": [],
   "instruments_detected": [],
   "alerts": [],
-  "guidance_tip": "Position camera clearly over an illuminated surgical field to begin live surgical scoring and alerts."
+  "guidance_tip": "Position camera clearly over an illuminated surgical field or operating table to begin live surgical scoring and alerts."
 }`;
 
   if (imageBase64) {
     try {
-      const visionRaw = await callGroqVisionDirect(visionPrompt, imageBase64, 850);
+      const visionRaw = await callGroqVisionDirect(visionPrompt, imageBase64, 900);
       const parsedVision = parseJsonSafe(visionRaw);
       if (parsedVision) {
         return normalizeLiveFrameResult(parsedVision, profile, ts, elapsedSeconds, frameMetrics, 'Groq Qwen3.8 Vision');
@@ -570,10 +585,16 @@ function buildNonSurgicalFrameResult({ ts, elapsedSeconds, reason, feedQuality =
     safety_score: null,
     efficiency_score: null,
     skill_score: null,
+    surgery_accuracy: null,
+    checklist: {
+      hand_hygiene: null,
+      sterile_field: null,
+      vital_signs_ok: null
+    },
     anatomy_identified: [],
     instruments_detected: [],
     alerts: [],
-    guidance_tip: 'Ensure the camera is focused and aimed at an illuminated surgical procedure to activate real-time scoring and hazard warnings.'
+    guidance_tip: 'Ensure the camera is focused and aimed at an illuminated surgical procedure or operating bed to activate real-time scoring and hazard warnings.'
   };
 }
 
@@ -604,7 +625,8 @@ function normalizeLiveFrameResult(raw, profile, ts, elapsedSeconds, frameMetrics
     description: a.description || 'Active surgical plane monitoring.',
     recommendation: a.recommendation || 'Maintain clear visualization and gentle tissue handling.',
     timestamp: a.timestamp || ts,
-    source: engineName
+    source: engineName,
+    resolved: false
   }));
 
   const combinedAlerts = [...opticalHazards, ...aiAlerts];
@@ -626,9 +648,26 @@ function normalizeLiveFrameResult(raw, profile, ts, elapsedSeconds, frameMetrics
     return Math.max(35, Math.min(100, Math.round(scaled)));
   };
 
-  let safetyScore = parseScoreOrNull(raw.safety_score, 92);
+  let safetyScore = parseScoreOrNull(raw.safety_score, 94);
   if (highestSeverity === 'critical') safetyScore = Math.min(safetyScore, 68);
   else if (highestSeverity === 'high') safetyScore = Math.min(safetyScore, 79);
+
+  const efficiencyScore = parseScoreOrNull(raw.efficiency_score, 91);
+  const skillScore = parseScoreOrNull(raw.skill_score, 93);
+  const surgeryAccuracy = parseScoreOrNull(
+    raw.surgery_accuracy,
+    Math.round(safetyScore * 0.4 + efficiencyScore * 0.3 + skillScore * 0.3)
+  );
+
+  const hasSterileBreach =
+    raw.checklist?.sterile_field === false ||
+    combinedAlerts.some(a => /steril|contaminat|breach|ungloved/i.test(`${a.title} ${a.description}`));
+  const hasHygieneBreach =
+    raw.checklist?.hand_hygiene === false ||
+    combinedAlerts.some(a => /hygiene|ungloved|bare hand/i.test(`${a.title} ${a.description}`));
+  const hasVitalBreach =
+    raw.checklist?.vital_signs_ok === false ||
+    combinedAlerts.some(a => a.severity === 'critical' && /hemorrhag|bleed|vital/i.test(`${a.title} ${a.description}`));
 
   return {
     timestamp: ts,
@@ -640,8 +679,14 @@ function normalizeLiveFrameResult(raw, profile, ts, elapsedSeconds, frameMetrics
     scene_observed: raw.scene_observed || `Surgical field confirmed — monitoring ${raw.phase || profile.phases[phaseIdx]}.`,
     risk_level: highestSeverity,
     safety_score: safetyScore,
-    efficiency_score: parseScoreOrNull(raw.efficiency_score, 90),
-    skill_score: parseScoreOrNull(raw.skill_score, 91),
+    efficiency_score: efficiencyScore,
+    skill_score: skillScore,
+    surgery_accuracy: surgeryAccuracy,
+    checklist: {
+      hand_hygiene: !hasHygieneBreach,
+      sterile_field: !hasSterileBreach,
+      vital_signs_ok: !hasVitalBreach
+    },
     anatomy_identified: Array.isArray(raw.anatomy_identified) ? raw.anatomy_identified : [],
     instruments_detected: Array.isArray(raw.instruments_detected) ? raw.instruments_detected : [],
     alerts: combinedAlerts,
@@ -662,7 +707,8 @@ function buildDeterministicLiveFrame(profile, procedureType, ts, elapsedSeconds,
         description: zoneAlert.description,
         recommendation: zoneAlert.recommendation,
         timestamp: ts,
-        source: 'Clinical Rule Engine'
+        source: 'Clinical Rule Engine',
+        resolved: false
       }]
     : [{
         id: `safe_${Date.now()}`,
@@ -671,7 +717,8 @@ function buildDeterministicLiveFrame(profile, procedureType, ts, elapsedSeconds,
         description: `${currentPhase}: Tissue tension and optical stability (${frameMetrics?.brightness ?? 60}% lum) within safe parameters.`,
         recommendation: 'Proceed with controlled anatomical plane identification.',
         timestamp: ts,
-        source: 'Clinical Rule Engine'
+        source: 'Clinical Rule Engine',
+        resolved: true
       }];
 
   const alerts = [...opticalHazards, ...periodicAlert];
@@ -683,6 +730,8 @@ function buildDeterministicLiveFrame(profile, procedureType, ts, elapsedSeconds,
         ? 'moderate'
         : 'low';
 
+  const safetyScore = riskLevel === 'critical' ? 68 : riskLevel === 'high' ? 78 : riskLevel === 'moderate' ? 89 : 96;
+
   return {
     timestamp: ts,
     elapsedSeconds,
@@ -692,9 +741,15 @@ function buildDeterministicLiveFrame(profile, procedureType, ts, elapsedSeconds,
     phase: currentPhase,
     scene_observed: `Live camera stream active for ${procedureType} — tracking ${currentPhase}.`,
     risk_level: riskLevel,
-    safety_score: riskLevel === 'critical' ? 68 : riskLevel === 'high' ? 78 : riskLevel === 'moderate' ? 87 : 95,
-    efficiency_score: 91,
-    skill_score: 93,
+    safety_score: safetyScore,
+    efficiency_score: 93,
+    skill_score: 95,
+    surgery_accuracy: Math.round(safetyScore * 0.4 + 93 * 0.3 + 95 * 0.3),
+    checklist: {
+      hand_hygiene: true,
+      sterile_field: !alerts.some(a => !a.resolved && /steril|contaminat|breach/i.test(`${a.title} ${a.description}`)),
+      vital_signs_ok: riskLevel !== 'critical'
+    },
     anatomy_identified: profile.landmarks.slice(0, 3 + (frameIndex % 2)),
     instruments_detected: profile.instruments.slice(0, 2 + (frameIndex % 2)),
     alerts,

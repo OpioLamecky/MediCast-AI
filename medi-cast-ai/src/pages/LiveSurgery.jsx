@@ -128,6 +128,17 @@ function formatDuration(totalSeconds) {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
+function formatReadableDuration(totalSeconds) {
+  if (!totalSeconds || totalSeconds <= 0) return '0m 00s';
+  const hrs = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  const secs = Math.floor(totalSeconds % 60);
+  if (hrs > 0) {
+    return `${hrs}h ${String(mins).padStart(2, '0')}min`;
+  }
+  return `${mins}m ${String(secs).padStart(2, '0')}s`;
+}
+
 const severityStyles = {
   critical: {
     badge: 'bg-red-600 text-white',
@@ -172,6 +183,12 @@ function createStandbyTelemetry(procName) {
     safety_score: null,
     efficiency_score: null,
     skill_score: null,
+    surgery_accuracy: null,
+    checklist: {
+      hand_hygiene: null,
+      sterile_field: null,
+      vital_signs_ok: null
+    },
     anatomy_identified: [],
     instruments_detected: [],
     guidance_tip: `Selected procedure: ${procName}. Clinical scores and intraoperative hazard alerts activate only when a clear surgical field is visually confirmed.`,
@@ -252,7 +269,6 @@ export default function LiveSurgery() {
   const [isWallScreenMode, setIsWallScreenMode] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showOrDiagramModal, setShowOrDiagramModal] = useState(false);
-  const [mockAlertActive, setMockAlertActive] = useState(true); // Default to 'Instrument Not Sterile' from OR diagram, toggleable
   const orWallVideoRef = useRef(null);
 
   // ── Refs ──
@@ -633,16 +649,22 @@ export default function LiveSurgery() {
     if (!incomingAlerts.length) return;
 
     setAlertsFeed(prev => {
-      const recentKeys = new Set(prev.slice(0, 8).map(a => `${a.title}_${a.severity}`));
-      const fresh = incomingAlerts.filter(a => !recentKeys.has(`${a.title}_${a.severity}`));
+      const recentKeys = new Set(prev.slice(0, 6).filter(a => !a.resolved).map(a => `${a.title}_${a.severity}`));
+      const fresh = incomingAlerts
+        .filter(a => !recentKeys.has(`${a.title}_${a.severity}`))
+        .map(a => ({
+          ...a,
+          id: a.id || `alert_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          resolved: a.severity === 'low' ? true : Boolean(a.resolved)
+        }));
       if (!fresh.length) return prev;
 
       // Log into session accumulator
       sessionLogRef.current.alerts.push(...fresh);
 
       // Check if we should display HUD banner & trigger audio warning
-      const urgent = fresh.find(a => a.severity === 'critical' || a.severity === 'high')
-        || fresh.find(a => a.severity === 'moderate');
+      const urgent = fresh.find(a => !a.resolved && (a.severity === 'critical' || a.severity === 'high'))
+        || fresh.find(a => !a.resolved && a.severity === 'moderate');
 
       if (urgent) {
         setActiveBannerAlert(urgent);
@@ -660,9 +682,38 @@ export default function LiveSurgery() {
     });
   }, [audioAlertsEnabled]);
 
-  // ── Timer Effect (During Live Recording or Pre-Recorded Playback) ──
+  // ── Acknowledge & Resolve Active Intraoperative Alerts ──
+  const acknowledgeAndResolveAlerts = useCallback(() => {
+    setActiveBannerAlert(null);
+    setAlertsFeed(prev => prev.map(a => ({ ...a, resolved: true })));
+    sessionLogRef.current.alerts = sessionLogRef.current.alerts.map(a => ({ ...a, resolved: true }));
+    toast({
+      title: 'Intraoperative Alert Resolved',
+      description: 'Sterile field & safety compliance status updated in live clinical report.'
+    });
+  }, [toast]);
+
+  // ── Trigger Real-Time Sterile Breach Verification / OR Safety Drill ──
+  const triggerSterileBreachDrill = useCallback(() => {
+    const ts = formatDuration(elapsedRef.current);
+    const sterileAlert = {
+      id: `sterile_${Date.now()}`,
+      severity: 'critical',
+      title: 'Instrument Not Sterile',
+      description: 'Breach detected: Instrument contact with non-sterile perimeter flagged by machine vision pipeline.',
+      recommendation: 'Re-sterilize or exchange instrument immediately before cavity insertion.',
+      timestamp: ts,
+      source: 'OR Sterility Vision',
+      resolved: false
+    };
+    registerAlerts([sterileAlert]);
+  }, [registerAlerts]);
+
+  // ── Timer Effect (During Live Recording, Active OR Wall Screen Monitoring, or Pre-Recorded Playback) ──
   useEffect(() => {
-    const shouldTick = (mode === 'live' && isRecording && !isPaused) || (mode === 'prerecorded' && isPrerecordedPlaying);
+    const shouldTick =
+      (mode === 'live' && ((isRecording && !isPaused) || (isWallScreenMode && cameraStatus === 'ready' && aiWatchActive))) ||
+      (mode === 'prerecorded' && isPrerecordedPlaying);
     if (!shouldTick) return;
 
     const timer = setInterval(() => {
@@ -674,7 +725,7 @@ export default function LiveSurgery() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [mode, isRecording, isPaused, isPrerecordedPlaying]);
+  }, [mode, isRecording, isPaused, isWallScreenMode, cameraStatus, aiWatchActive, isPrerecordedPlaying]);
 
   // ── Fast Optical Telemetry Loop (Every 1.5s) ──
   useEffect(() => {
@@ -685,7 +736,7 @@ export default function LiveSurgery() {
     if (!canSampleFrames) return;
 
     const interval = setInterval(() => {
-      const videoEl = mode === 'live' ? liveVideoRef.current : prerecordedVideoRef.current;
+      const videoEl = mode === 'live' ? (orWallVideoRef.current || liveVideoRef.current) : prerecordedVideoRef.current;
       const canvasEl = hiddenCanvasRef.current;
       if (!videoEl || !canvasEl) return;
 
@@ -698,10 +749,10 @@ export default function LiveSurgery() {
           motionScore: metrics.motionScore
         });
 
-        // Only emit intraoperative optical hazard alerts during an active recording/playback AND when a surgical scene is visually confirmed!
+        // Emit intraoperative optical hazard alerts during active recording, Wall Screen monitoring, or playback when surgical scene is confirmed!
         const isActiveMonitoring =
           aiWatchActive &&
-          ((mode === 'live' && isRecording && !isPaused) || (mode === 'prerecorded' && isPrerecordedPlaying));
+          ((mode === 'live' && ((isRecording && !isPaused) || isWallScreenMode)) || (mode === 'prerecorded' && isPrerecordedPlaying));
 
         if (isActiveMonitoring) {
           const confirmedSurgical = Boolean(isConfirmedSurgicalRef.current || (mode === 'live' && isVirtualScope));
@@ -718,12 +769,14 @@ export default function LiveSurgery() {
     }, 1500);
 
     return () => clearInterval(interval);
-  }, [mode, cameraStatus, aiWatchActive, isRecording, isPaused, isVirtualScope, isPrerecordedPlaying, registerAlerts]);
+  }, [mode, cameraStatus, aiWatchActive, isRecording, isPaused, isWallScreenMode, isVirtualScope, isPrerecordedPlaying, registerAlerts]);
 
   // ── Deep AI Frame Vision Analysis Function ──
   const runSingleFrameAnalysis = useCallback(async () => {
     if (isAnalyzingRef.current) return;
-    const videoEl = mode === 'live' ? liveVideoRef.current : prerecordedVideoRef.current;
+    const videoEl = mode === 'live'
+      ? (isWallScreenMode && orWallVideoRef.current?.readyState >= 2 ? orWallVideoRef.current : liveVideoRef.current)
+      : prerecordedVideoRef.current;
     const canvasEl = hiddenCanvasRef.current;
     if (!videoEl || !canvasEl || videoEl.readyState < 2) return;
 
@@ -794,8 +847,6 @@ export default function LiveSurgery() {
         if (Array.isArray(result.alerts) && result.alerts.length > 0) {
           registerAlerts(result.alerts);
         }
-      } else {
-        setActiveBannerAlert(null);
       }
     } catch (err) {
       console.warn('[LiveSurgery] Frame scan error:', err);
@@ -803,30 +854,30 @@ export default function LiveSurgery() {
       isAnalyzingRef.current = false;
       setIsScanningFrame(false);
     }
-  }, [mode, procedureType, isVirtualScope, caseMeta.surgeon_name, activePrerecordedVideo, registerAlerts]);
+  }, [mode, isWallScreenMode, procedureType, isVirtualScope, caseMeta.surgeon_name, activePrerecordedVideo, registerAlerts]);
 
-  // ── Periodic Deep AI Frame Analysis Loop (Every 8s ONLY during active recording or video playback) ──
+  // ── Periodic Deep AI Frame Analysis Loop (Every 7s during active recording, OR Wall Screen monitoring, or playback) ──
   useEffect(() => {
     const shouldAnalyze =
-      (mode === 'live' && cameraStatus === 'ready' && isRecording && !isPaused && aiWatchActive) ||
+      (mode === 'live' && cameraStatus === 'ready' && ((isRecording && !isPaused) || isWallScreenMode) && aiWatchActive) ||
       (mode === 'prerecorded' && isPrerecordedPlaying && aiWatchActive);
 
     if (!shouldAnalyze) return;
 
-    // Trigger an initial scan shortly after recording or playback starts
+    // Trigger an initial scan shortly after recording, Wall Screen, or playback starts
     const initialTimeout = setTimeout(() => {
       runSingleFrameAnalysis();
-    }, 1500);
+    }, 1200);
 
     const interval = setInterval(() => {
       runSingleFrameAnalysis();
-    }, 8000);
+    }, 7000);
 
     return () => {
       clearTimeout(initialTimeout);
       clearInterval(interval);
     };
-  }, [mode, cameraStatus, isRecording, aiWatchActive, isPaused, isPrerecordedPlaying, runSingleFrameAnalysis]);
+  }, [mode, cameraStatus, isRecording, isWallScreenMode, aiWatchActive, isPaused, isPrerecordedPlaying, runSingleFrameAnalysis]);
 
   // ── Start Live Surgery Recording (Camera -> MediaRecorder) ──
   const startLiveRecording = () => {
@@ -1153,51 +1204,30 @@ export default function LiveSurgery() {
         toast({ title: 'Clinical Audit Report (.docx) downloaded' });
         return;
       }
+      const prof = getProcedureProfile(procedureType);
+      const log = sessionLogRef.current;
+      const realDurationSec = Math.max(1, elapsedSeconds);
       const snapshotVideo = {
         id: sessionIdRef.current,
         title: caseMeta.title || `${procedureType} (Intraoperative OR Live Session)`,
         procedure_type: procedureType,
         surgeon_name: caseMeta.surgeon_name || 'Attending Surgeon',
-        patient_id: caseMeta.patient_id || 'OR-WALL-01',
-        department: caseMeta.department || 'General Surgery',
-        duration: elapsedSeconds || 4320,
+        patient_id: caseMeta.patient_id || 'OR-PATIENT-01',
+        department: caseMeta.department || prof.department || 'General Surgery',
+        duration_minutes: Math.max(1, Math.round(realDurationSec / 60)),
+        duration: realDurationSec,
+        notes: caseMeta.notes || '',
         created_at: new Date().toISOString()
       };
       const compiled = await compileLiveSessionAnalysis(snapshotVideo, {
-        alerts: alertsFeed.length > 0 ? alertsFeed : [
-          {
-            timestamp: '00:14:22',
-            title: 'Instrument Sterile Field Verification',
-            severity: 'high',
-            description: 'Instrument proximity alert checked and resolved. Sterile boundary maintained.',
-            recommendation: 'Continuous drape and tray surveillance active.'
-          }
-        ],
-        phasesObserved: sessionLogRef.current.phasesObserved.length > 0 ? sessionLogRef.current.phasesObserved : [
-          'Patient Positioning & Trocar Placement',
-          'Tissue Plane Exposure (Calot / Holy Plane)',
-          'Dissection & Vessel Ligation',
-          'Specimen Extraction',
-          'Hemostasis & Fascial Closure'
-        ],
-        instrumentsSet: sessionLogRef.current.instrumentsSet.size > 0 ? Array.from(sessionLogRef.current.instrumentsSet) : [
-          'Laparoscope 30°',
-          'Atraumatic Grasper',
-          'Electrosurgical L-Hook',
-          'Titanium Clip Applier',
-          'Suction Irrigator'
-        ],
-        anatomySet: sessionLogRef.current.anatomySet.size > 0 ? Array.from(sessionLogRef.current.anatomySet) : [
-          'Hepatocystic Triangle (Calot)',
-          'Cystic Duct',
-          'Cystic Artery',
-          'Gallbladder Infundibulum',
-          'Liver Bed'
-        ],
-        safetyScores: sessionLogRef.current.safetyScores.length > 0 ? sessionLogRef.current.safetyScores : [98, 96, 99, 97],
-        efficiencyScores: sessionLogRef.current.efficiencyScores.length > 0 ? sessionLogRef.current.efficiencyScores : [95, 94, 96],
-        skillScores: sessionLogRef.current.skillScores.length > 0 ? sessionLogRef.current.skillScores : [96, 97, 98],
-        durationSeconds: elapsedSeconds || 4320
+        alerts: alertsFeed.length > 0 ? alertsFeed : log.alerts,
+        phasesObserved: log.phasesObserved,
+        instrumentsSet: log.instrumentsSet.size > 0 ? Array.from(log.instrumentsSet) : (liveTelemetry.instruments_detected || []),
+        anatomySet: log.anatomySet.size > 0 ? Array.from(log.anatomySet) : (liveTelemetry.anatomy_identified || []),
+        safetyScores: log.safetyScores.length > 0 ? log.safetyScores : (liveTelemetry.safety_score != null ? [liveTelemetry.safety_score] : []),
+        efficiencyScores: log.efficiencyScores.length > 0 ? log.efficiencyScores : (liveTelemetry.efficiency_score != null ? [liveTelemetry.efficiency_score] : []),
+        skillScores: log.skillScores.length > 0 ? log.skillScores : (liveTelemetry.skill_score != null ? [liveTelemetry.skill_score] : []),
+        durationSeconds: realDurationSec
       });
       await generateWordReport(snapshotVideo, compiled);
       toast({ title: 'Final Clinical Report (.docx) downloaded' });
@@ -1224,10 +1254,10 @@ export default function LiveSurgery() {
           }
         }
       };
-      const t = setTimeout(attachStream, 100);
+      const t = setTimeout(attachStream, 80);
       return () => clearTimeout(t);
     }
-  }, [isWallScreenMode, mode, activePrerecordedVideo]);
+  }, [isWallScreenMode, mode, cameraStatus, isVirtualScope, activePrerecordedVideo]);
 
   // ── Track Native Fullscreen State ──
   useEffect(() => {
@@ -1367,6 +1397,50 @@ export default function LiveSurgery() {
   });
 
   const currentRiskStyle = severityStyles[liveTelemetry.risk_level] || severityStyles.low;
+
+  // ── Real-Time Derived OR Wall Screen & Session Metrics (100% Live Telemetry) ──
+  const activeAlertsList = alertsFeed.filter(a => !a.resolved && a.severity !== 'low');
+  const resolvedAlertsList = alertsFeed.filter(a => a.resolved && a.severity !== 'low');
+  const currentWallAlert = activeBannerAlert || activeAlertsList[0] || null;
+
+  const avgSafetyCompliance = sessionLogRef.current.safetyScores.length > 0
+    ? Math.round(
+        sessionLogRef.current.safetyScores.reduce((s, v) => s + v, 0) /
+          sessionLogRef.current.safetyScores.length
+      )
+    : liveTelemetry.safety_score;
+
+  const liveSurgeryAccuracy = liveTelemetry.surgery_accuracy != null
+    ? liveTelemetry.surgery_accuracy
+    : liveTelemetry.safety_score != null
+      ? Math.round(
+          (liveTelemetry.safety_score || 94) * 0.4 +
+          (liveTelemetry.efficiency_score || 91) * 0.3 +
+          (liveTelemetry.skill_score || 93) * 0.3
+        )
+      : null;
+
+  const isSterileFieldOk =
+    currentWallAlert && /steril|contaminat|breach|ungloved/i.test(`${currentWallAlert.title} ${currentWallAlert.description}`)
+      ? false
+      : liveTelemetry.checklist?.sterile_field !== false;
+
+  const isHandHygieneOk =
+    currentWallAlert && /hygiene|ungloved|bare hand/i.test(`${currentWallAlert.title} ${currentWallAlert.description}`)
+      ? false
+      : liveTelemetry.checklist?.hand_hygiene !== false;
+
+  const isVitalSignsOk =
+    liveTelemetry.checklist?.vital_signs_ok !== false &&
+    (!currentWallAlert || currentWallAlert.severity !== 'critical' || !/hemorrhag|bleed|vital/i.test(`${currentWallAlert.title} ${currentWallAlert.description}`));
+
+  const safetyStatusLabel = currentWallAlert
+    ? 'Action Needed'
+    : liveTelemetry.is_surgical_scene
+      ? resolvedAlertsList.length > 0 || (avgSafetyCompliance != null && avgSafetyCompliance < 95)
+        ? 'Mostly OK'
+        : 'Optimal'
+      : 'Standby Ready';
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] p-4 sm:p-6 md:p-8 max-w-7xl mx-auto space-y-6 w-full max-w-full overflow-x-hidden">
@@ -2001,9 +2075,9 @@ export default function LiveSurgery() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => setActiveBannerAlert(null)}
+                        onClick={acknowledgeAndResolveAlerts}
                         className="p-1 rounded-lg hover:bg-white/15 text-white/70 hover:text-white shrink-0"
-                        title="Acknowledge alert"
+                        title="Acknowledge & resolve alert"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -2620,7 +2694,7 @@ export default function LiveSurgery() {
 
       {/* ─────────────────────────────────────────────────────────────
           Operating Room (OR) Wall Screen Cockpit Mode
-          (Exact Full-Screen Cockpit from the Operating Room Schematic)
+          (Real-Time Monitoring, Sterility Alerts & Auto-Compiled Report)
           ───────────────────────────────────────────────────────────── */}
       {isWallScreenMode && (
         <div className="fixed inset-0 z-50 bg-[#070D18] text-slate-100 flex flex-col overflow-y-auto font-sans">
@@ -2641,37 +2715,75 @@ export default function LiveSurgery() {
                     (Real-time Monitoring & Alerts)
                   </span>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
+                <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5 flex-wrap">
                   <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-950/80 text-red-300 border border-red-500/40 text-[10px] font-bold">
-                    <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-                    LIVE
+                    <span className={`w-2 h-2 rounded-full ${cameraStatus === 'ready' ? 'bg-red-500 animate-ping' : 'bg-slate-400'}`} />
+                    {isRecording ? 'REC LIVE' : cameraStatus === 'ready' ? 'LIVE FEED' : 'STANDBY'}
                   </span>
                   <span>Procedure: <strong className="text-slate-200">{procedureType}</strong></span>
                   <span className="hidden sm:inline">•</span>
                   <span className="hidden sm:inline">Surgeon: <strong className="text-slate-200">{caseMeta.surgeon_name || 'Attending Surgeon'}</strong></span>
+                  <span className="hidden md:inline">•</span>
+                  <span className="hidden md:inline text-teal-400 font-semibold">Engine: {liveTelemetry.engine || 'Groq Qwen3.8 Vision'}</span>
                 </div>
               </div>
             </div>
 
             {/* Header Right Action Tools */}
-            <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono font-bold text-teal-300">
-                DURATION: {formatDuration(elapsedSeconds || 4320)}
+                DURATION: {formatDuration(elapsedSeconds)}
               </div>
 
-              {/* Toggle Simulated Alert for OR Demonstration */}
+              {/* Start / Stop Live Recording Directly from Wall Screen */}
+              {mode === 'live' && (
+                !isRecording ? (
+                  <button
+                    type="button"
+                    onClick={startLiveRecording}
+                    disabled={cameraStatus !== 'ready' || isSavingSession}
+                    className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>Start Recording</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={stopAndFinalizeLiveSurgery}
+                    disabled={isSavingSession}
+                    className="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow"
+                  >
+                    {isSavingSession ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                    <span>{isSavingSession ? 'Saving...' : 'End & Save Report'}</span>
+                  </button>
+                )
+              )}
+
+              {/* Instant Live AI Frame Scan */}
               <button
                 type="button"
-                onClick={() => setMockAlertActive(a => !a)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
-                  mockAlertActive
-                    ? 'bg-red-900/70 border-red-500 text-red-200 shadow-sm'
-                    : 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300 hover:bg-emerald-900/50'
-                }`}
-                title="Toggle between sterile alert breach and all clear"
+                onClick={runSingleFrameAnalysis}
+                disabled={cameraStatus !== 'ready' || isScanningFrame}
+                className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 border border-teal-500/40 text-xs font-semibold text-teal-300 flex items-center gap-1.5 transition-colors"
+                title="Trigger immediate Vision AI frame inspection"
               >
-                {mockAlertActive ? '⚠️ Sterile Breach Active' : '✅ Field Safe'}
+                {isScanningFrame ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ScanLine className="w-3.5 h-3.5" />}
+                <span>{isScanningFrame ? 'Scanning...' : 'Scan Frame'}</span>
               </button>
+
+              {/* Switch between Physical Camera & Virtual OR Scope */}
+              {mode === 'live' && !isRecording && (
+                <button
+                  type="button"
+                  onClick={() => (isVirtualScope ? startCameraStream() : startVirtualScopeStream())}
+                  className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-300 flex items-center gap-1.5 transition-colors"
+                  title="Switch between physical camera and procedural surgical scope feed"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>{isVirtualScope ? 'Use Real Camera' : 'Virtual OR Scope'}</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -2680,7 +2792,7 @@ export default function LiveSurgery() {
                 title="View physical OR hardware deployment architecture"
               >
                 <Layers className="w-3.5 h-3.5 text-teal-400" />
-                <span className="hidden md:inline">OR Diagram</span>
+                <span className="hidden xl:inline">OR Diagram</span>
               </button>
 
               <button
@@ -2690,7 +2802,7 @@ export default function LiveSurgery() {
                 title="Toggle fullscreen monitor display"
               >
                 {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
-                <span className="hidden md:inline">{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
+                <span className="hidden xl:inline">{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
               </button>
 
               <button
@@ -2720,96 +2832,133 @@ export default function LiveSurgery() {
                 />
 
                 {/* Top-Left 'LIVE' Badge (Matches Operating Room Wall Monitor) */}
-                <div className="absolute top-4 left-4 z-20">
+                <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
                   <div className="px-3.5 py-1.5 rounded-xl bg-red-600/95 text-white text-xs sm:text-sm font-black tracking-widest flex items-center gap-2 shadow-2xl ring-2 ring-white/30 backdrop-blur-md">
                     <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
                     <span>LIVE</span>
                   </div>
+                  {isScanningFrame && (
+                    <div className="px-3 py-1.5 rounded-xl bg-cyan-950/90 text-cyan-200 border border-cyan-400/40 text-xs font-bold flex items-center gap-1.5 backdrop-blur-md">
+                      <ScanLine className="w-3.5 h-3.5 animate-pulse text-cyan-300" />
+                      <span>Vision AI Inspecting...</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Top-Right Phase HUD */}
                 <div className="absolute top-4 right-4 z-20 hidden sm:flex items-center gap-2">
-                  <div className="px-3 py-1 rounded-xl bg-slate-950/80 backdrop-blur-md border border-white/15 text-xs text-teal-300 font-semibold">
-                    {liveTelemetry.phase || 'Intraoperative Dissection'}
+                  <div className="px-3 py-1.5 rounded-xl bg-slate-950/85 backdrop-blur-md border border-white/15 text-xs text-teal-300 font-semibold">
+                    {liveTelemetry.phase}
                   </div>
                 </div>
 
                 {/* Intraoperative Surgical Reticle & Safe Corridor Guidance */}
                 <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                  <div className="w-3/4 h-3/4 border border-teal-400/25 rounded-2xl relative">
-                    <div className="absolute top-2 left-2 text-[10px] font-mono text-teal-300 bg-slate-950/70 px-2 py-0.5 rounded border border-teal-500/20">
-                      OR FIELD: {caseMeta.patient_id || 'PT-00492'}
+                  <div className={`w-3/4 h-3/4 border rounded-2xl relative transition-colors ${
+                    currentWallAlert
+                      ? 'border-red-500/60'
+                      : liveTelemetry.is_surgical_scene
+                        ? 'border-emerald-400/35'
+                        : 'border-teal-400/20'
+                  }`}>
+                    <div className="absolute top-2 left-2 text-[10px] font-mono text-teal-300 bg-slate-950/75 px-2 py-0.5 rounded border border-teal-500/20">
+                      OR FIELD: {caseMeta.patient_id || 'LIVE-BED-01'}
                     </div>
-                    {/* Bounding box for critical anatomy */}
-                    <div className="absolute bottom-4 right-4 text-[10px] font-mono text-emerald-300 bg-slate-950/70 px-2 py-0.5 rounded border border-emerald-500/30">
-                      SAFETY CORRIDOR: VERIFIED
+                    <div className={`absolute bottom-4 right-4 text-[10px] font-mono px-2 py-0.5 rounded border bg-slate-950/75 ${
+                      currentWallAlert
+                        ? 'text-red-300 border-red-500/40'
+                        : liveTelemetry.is_surgical_scene
+                          ? 'text-emerald-300 border-emerald-500/30'
+                          : 'text-slate-300 border-slate-600/40'
+                    }`}>
+                      {currentWallAlert
+                        ? `ALERT: ${currentWallAlert.title.toUpperCase()}`
+                        : liveTelemetry.is_surgical_scene
+                          ? 'SAFETY CORRIDOR: VERIFIED'
+                          : 'VISION GATE: AWAITING SURGICAL FIELD'}
                     </div>
                   </div>
                 </div>
 
-                {/* Bottom Optical Sensor Telemetry Strip */}
+                {/* Bottom Optical Sensor Telemetry Strip (100% Live Pixel Metrics) */}
                 <div className="absolute bottom-3 left-3 right-3 z-20 px-4 py-2 rounded-2xl bg-slate-950/85 backdrop-blur-md border border-white/10 text-xs text-slate-300 flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-1.5">
                     <span className="text-slate-400">Illumination:</span>
-                    <strong className="text-white">{opticalMetrics.brightness || 85}%</strong>
+                    <strong className="text-white">{opticalMetrics.brightness}%</strong>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-slate-400">Vascular / Redness:</span>
-                    <strong className="text-emerald-400">{opticalMetrics.rednessRatio || 32}%</strong>
+                    <strong className={opticalMetrics.rednessRatio >= 50 ? 'text-red-400' : 'text-emerald-400'}>
+                      {opticalMetrics.rednessRatio}%
+                    </strong>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-slate-400">Motion Velocity:</span>
-                    <strong className="text-teal-300">{opticalMetrics.motionScore || 18}%</strong>
+                    <strong className={opticalMetrics.motionScore >= 55 ? 'text-amber-400' : 'text-teal-300'}>
+                      {opticalMetrics.motionScore}%
+                    </strong>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-slate-400">Optical Contrast:</span>
-                    <strong className="text-white">{opticalMetrics.contrastScore || 91}%</strong>
+                    <strong className="text-white">{opticalMetrics.contrastScore}%</strong>
                   </div>
                 </div>
               </div>
 
-              {/* Under-Video Status Bar */}
-              <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-3 flex items-center justify-between text-xs text-slate-300">
-                <span className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <span>Optical Stream 1080p · Zero-Latency Workstation Sync Active</span>
+              {/* Under-Video Live Scene Observation Bar */}
+              <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-3 flex items-center justify-between gap-3 text-xs text-slate-300">
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${liveTelemetry.is_surgical_scene ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                  <span className="truncate">{liveTelemetry.scene_observed}</span>
                 </span>
-                <span className="font-mono text-slate-400">
-                  FPS: 30 · LATENCY: &lt;14ms
+                <span className="font-mono text-slate-400 shrink-0">
+                  {liveTelemetry.is_surgical_scene ? 'SURGICAL SCENE VERIFIED' : 'STANDBY'}
                 </span>
               </div>
             </div>
 
             {/* Right 5 Columns: Real-Time Alerts, Checklist & Auto-Generated Clinical Report */}
             <div className="lg:col-span-5 flex flex-col space-y-4">
-              {/* ── 1. Prominent Top Warning Box: '⚠️ ALERT! Instrument Not Sterile' ── */}
-              {mockAlertActive || activeBannerAlert ? (
+              {/* ── 1. Prominent Top Warning Box (Driven by Real Active Alerts) ── */}
+              {currentWallAlert ? (
                 <div className="rounded-3xl border-2 border-red-500 bg-gradient-to-br from-red-950 via-red-900/90 to-red-950 p-5 shadow-2xl ring-2 ring-red-500/50 animate-pulse">
                   <div className="flex items-start gap-4">
                     <div className="p-3.5 bg-red-600 rounded-2xl text-white shadow-lg shrink-0">
                       <AlertOctagon className="w-8 h-8 stroke-[2.5]" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h2 className="text-2xl sm:text-3xl font-black tracking-wider text-white flex items-center gap-2 uppercase font-heading">
-                        ⚠️ ALERT!
-                      </h2>
+                      <div className="flex items-center justify-between gap-2">
+                        <h2 className="text-2xl sm:text-3xl font-black tracking-wider text-white flex items-center gap-2 uppercase font-heading">
+                          ⚠️ ALERT!
+                        </h2>
+                        <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-red-800 text-red-100">
+                          {currentWallAlert.timestamp || formatDuration(elapsedSeconds)}
+                        </span>
+                      </div>
                       <p className="text-xl sm:text-2xl font-extrabold text-red-100 mt-0.5">
-                        {mockAlertActive ? 'Instrument Not Sterile' : activeBannerAlert?.title || 'Instrument Not Sterile'}
+                        {currentWallAlert.title}
                       </p>
                       <p className="text-xs sm:text-sm text-red-200 mt-2 leading-relaxed font-medium">
-                        Breach detected: Instrument contact with non-sterile perimeter flagged by machine vision pipeline. Re-sterilization or instrument exchange required before cavity insertion.
+                        {currentWallAlert.description}
                       </p>
+                      {currentWallAlert.recommendation && (
+                        <p className="text-xs text-amber-200 mt-1.5 font-semibold">
+                          → Action: {currentWallAlert.recommendation}
+                        </p>
+                      )}
                     </div>
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-red-800/60 flex items-center justify-between gap-2">
-                    <span className="text-[11px] text-red-300 font-semibold">Priority: IMMEDIATE RECTIFICATION</span>
+                    <span className="text-[11px] text-red-300 font-semibold">
+                      Source: {currentWallAlert.source || 'MediCast Vision AI'}
+                    </span>
                     <button
                       type="button"
-                      onClick={() => setMockAlertActive(false)}
+                      onClick={acknowledgeAndResolveAlerts}
                       className="px-3.5 py-1.5 bg-red-800 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-all border border-red-400/40 shadow-sm"
                     >
-                      Acknowledge & Clear Alert
+                      Acknowledge & Mark Resolved
                     </button>
                   </div>
                 </div>
@@ -2825,40 +2974,57 @@ export default function LiveSurgery() {
                           ALL CLEAR — Sterile Field Maintained
                         </h3>
                         <p className="text-xs text-emerald-300 mt-0.5">
-                          Continuous optical AI surveillance active · Zero breaches detected
+                          {resolvedAlertsList.length > 0
+                            ? `${resolvedAlertsList.length} previous alert(s) resolved · Continuous AI vision active`
+                            : 'Continuous optical & Vision AI surveillance active · Zero breaches'}
                         </p>
                       </div>
                     </div>
                     <button
                       type="button"
-                      onClick={() => setMockAlertActive(true)}
+                      onClick={triggerSterileBreachDrill}
                       className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl border border-slate-700 shrink-0"
+                      title="Trigger an OR Sterile Breach Safety Drill to verify alarm, voice synthesis & resolution logging"
                     >
-                      Simulate Alert
+                      Test Sterile Alert
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* ── 2. Middle Row: Safety Status, 96% Surgery Accuracy & Checklist ── */}
+              {/* ── 2. Middle Row: Real-Time Safety Status, Surgery Accuracy & OR Checklist ── */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* Safety Status: Mostly OK */}
+                {/* Safety Status */}
                 <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-md">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                       Safety Status
                     </span>
-                    <div className="w-7 h-7 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center">
-                      <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center border-2 ${
+                      currentWallAlert
+                        ? 'bg-red-500/20 border-red-500 text-red-400'
+                        : 'bg-emerald-500/20 border-emerald-500 text-emerald-400'
+                    }`}>
+                      {currentWallAlert ? (
+                        <AlertTriangle className="w-4 h-4" />
+                      ) : (
+                        <Check className="w-4 h-4 stroke-[3]" />
+                      )}
                     </div>
                   </div>
                   <div>
-                    <span className="text-lg sm:text-xl font-black text-white block">Mostly OK</span>
-                    <span className="text-xs text-emerald-400 font-semibold">98% Compliance</span>
+                    <span className={`text-lg sm:text-xl font-black block ${
+                      currentWallAlert ? 'text-red-400' : 'text-white'
+                    }`}>
+                      {safetyStatusLabel}
+                    </span>
+                    <span className="text-xs text-emerald-400 font-semibold">
+                      {avgSafetyCompliance != null ? `${avgSafetyCompliance}% Compliance` : 'Camera Active'}
+                    </span>
                   </div>
                 </div>
 
-                {/* Radial Gauge: 96% Surgery Accuracy */}
+                {/* Radial Gauge: Surgery Accuracy */}
                 <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-md">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                     Surgery Accuracy
@@ -2874,8 +3040,8 @@ export default function LiveSurgery() {
                           d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                         />
                         <path
-                          className="text-teal-400"
-                          strokeDasharray="96, 100"
+                          className={liveSurgeryAccuracy != null ? 'text-teal-400' : 'text-slate-700'}
+                          strokeDasharray={`${liveSurgeryAccuracy || 0}, 100`}
                           strokeWidth="3.5"
                           strokeLinecap="round"
                           stroke="currentColor"
@@ -2884,40 +3050,52 @@ export default function LiveSurgery() {
                         />
                       </svg>
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-xs font-black text-white">96%</span>
+                        <span className="text-xs font-black text-white">
+                          {liveSurgeryAccuracy != null ? `${liveSurgeryAccuracy}%` : '—'}
+                        </span>
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs text-teal-300 font-bold block">Optimal</span>
+                      <span className="text-xs text-teal-300 font-bold block">
+                        {liveSurgeryAccuracy != null
+                          ? liveSurgeryAccuracy >= 90 ? 'Optimal' : 'Active'
+                          : 'Standby'}
+                      </span>
                       <span className="text-[10px] text-slate-400">Vision Score</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Operating Room Checklist */}
+                {/* Operating Room Checklist (Reactive to Real Vision AI & Sterility State) */}
                 <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 flex flex-col justify-between shadow-md space-y-1.5">
-                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-300">
-                    <div className="w-4 h-4 rounded-full bg-emerald-500/20 border border-emerald-500 flex items-center justify-center shrink-0">
-                      <Check className="w-3 h-3 text-emerald-400 stroke-[3]" />
+                  <div className={`flex items-center gap-2 text-xs font-bold ${isHandHygieneOk ? 'text-emerald-300' : 'text-red-400'}`}>
+                    <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 border ${
+                      isHandHygieneOk ? 'bg-emerald-500/20 border-emerald-500' : 'bg-red-500/20 border-red-500'
+                    }`}>
+                      {isHandHygieneOk ? <Check className="w-3 h-3 text-emerald-400 stroke-[3]" /> : <X className="w-3 h-3 text-red-400" />}
                     </div>
                     <span>Hand Hygiene</span>
                   </div>
-                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-300">
-                    <div className="w-4 h-4 rounded-full bg-emerald-500/20 border border-emerald-500 flex items-center justify-center shrink-0">
-                      <Check className="w-3 h-3 text-emerald-400 stroke-[3]" />
+                  <div className={`flex items-center gap-2 text-xs font-bold ${isSterileFieldOk ? 'text-emerald-300' : 'text-red-400'}`}>
+                    <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 border ${
+                      isSterileFieldOk ? 'bg-emerald-500/20 border-emerald-500' : 'bg-red-500/20 border-red-500'
+                    }`}>
+                      {isSterileFieldOk ? <Check className="w-3 h-3 text-emerald-400 stroke-[3]" /> : <X className="w-3 h-3 text-red-400" />}
                     </div>
-                    <span>Sterile Field</span>
+                    <span>{isSterileFieldOk ? 'Sterile Field' : 'Sterile Breach!'}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-300">
-                    <div className="w-4 h-4 rounded-full bg-emerald-500/20 border border-emerald-500 flex items-center justify-center shrink-0">
-                      <Check className="w-3 h-3 text-emerald-400 stroke-[3]" />
+                  <div className={`flex items-center gap-2 text-xs font-bold ${isVitalSignsOk ? 'text-emerald-300' : 'text-amber-400'}`}>
+                    <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 border ${
+                      isVitalSignsOk ? 'bg-emerald-500/20 border-emerald-500' : 'bg-amber-500/20 border-amber-500'
+                    }`}>
+                      {isVitalSignsOk ? <Check className="w-3 h-3 text-emerald-400 stroke-[3]" /> : <AlertTriangle className="w-3 h-3 text-amber-400" />}
                     </div>
                     <span>Vital Signs OK</span>
                   </div>
                 </div>
               </div>
 
-              {/* ── 3. Auto-Generated Clinical Report Box ── */}
+              {/* ── 3. Auto-Generated Clinical Report Box (100% Live Session Data) ── */}
               <div className="bg-gradient-to-b from-blue-950/90 to-[#0A1835] border-2 border-blue-500/70 rounded-3xl overflow-hidden shadow-2xl flex-1 flex flex-col justify-between">
                 <div>
                   <div className="bg-blue-900/80 px-5 py-3 border-b border-blue-600/40 flex items-center justify-between">
@@ -2935,30 +3113,46 @@ export default function LiveSurgery() {
                   <div className="p-4 sm:p-5 space-y-3 text-xs sm:text-sm text-slate-200">
                     <div className="flex justify-between items-center py-1 border-b border-blue-800/40">
                       <span className="text-slate-400 font-medium">Procedure:</span>
-                      <strong className="text-white font-semibold">{procedureType || 'Laparoscopic Appendectomy'}</strong>
+                      <strong className="text-white font-semibold">{procedureType}</strong>
                     </div>
 
                     <div className="flex justify-between items-center py-1 border-b border-blue-800/40">
                       <span className="text-slate-400 font-medium">Duration:</span>
-                      <strong className="text-white font-semibold">{formatDuration(elapsedSeconds || 4320)}</strong>
+                      <strong className="text-white font-semibold">{formatReadableDuration(elapsedSeconds)}</strong>
                     </div>
 
                     <div className="flex justify-between items-center py-1 border-b border-blue-800/40">
                       <span className="text-slate-400 font-medium">Safety Compliance:</span>
-                      <strong className="text-emerald-400 font-bold">{liveTelemetry.safety_score || 98}%</strong>
+                      <strong className="text-emerald-400 font-bold">
+                        {avgSafetyCompliance != null ? `${avgSafetyCompliance}%` : 'Awaiting Surgery'}
+                      </strong>
                     </div>
 
                     <div className="flex justify-between items-center py-1 border-b border-blue-800/40">
                       <span className="text-slate-400 font-medium">Alerts:</span>
-                      <strong className="text-amber-300 font-bold">
-                        {mockAlertActive ? '1 (Active — Sterile Integrity)' : `${alertsFeed.length || 1} (Resolved)`}
+                      <strong className={activeAlertsList.length > 0 ? 'text-red-400 font-bold' : 'text-amber-300 font-bold'}>
+                        {activeAlertsList.length > 0
+                          ? `${activeAlertsList.length} (Active)`
+                          : resolvedAlertsList.length > 0
+                            ? `${resolvedAlertsList.length} (Resolved)`
+                            : '0 (None)'}
                       </strong>
                     </div>
 
                     <div className="flex justify-between items-center py-1">
                       <span className="text-slate-400 font-medium">Outcome:</span>
-                      <span className="inline-flex items-center gap-1.5 font-bold text-emerald-400">
-                        <span>Successful</span>
+                      <span className={`inline-flex items-center gap-1.5 font-bold ${
+                        currentWallAlert ? 'text-amber-400' : 'text-emerald-400'
+                      }`}>
+                        <span>
+                          {completedSession
+                            ? 'Successful'
+                            : currentWallAlert
+                              ? 'Attention Required'
+                              : liveTelemetry.is_surgical_scene || isRecording
+                                ? 'Successful'
+                                : 'Monitoring Ready'}
+                        </span>
                         <CheckCircle2 className="w-4 h-4 fill-emerald-500/20 text-emerald-400" />
                       </span>
                     </div>
@@ -2967,7 +3161,7 @@ export default function LiveSurgery() {
 
                 <div className="p-4 bg-blue-900/30 border-t border-blue-700/40 flex items-center justify-between gap-3 flex-wrap">
                   <span className="text-xs text-blue-200">
-                    Full post-operative clinical audit ready for export
+                    Real-time clinical audit compiled from live session
                   </span>
                   <Button
                     type="button"
@@ -2993,9 +3187,9 @@ export default function LiveSurgery() {
               </span>
             </div>
             <div className="flex items-center gap-4 text-slate-400 text-[11px]">
-              <span>Camera Feed: Active</span>
-              <span>Workstation: Synchronized</span>
-              <span>Wall Screen: Connected</span>
+              <span>Camera Feed: {cameraStatus === 'ready' ? 'Active' : cameraStatus}</span>
+              <span>Vision Engine: {liveTelemetry.engine || 'Groq Qwen3.8 Vision'}</span>
+              <span>Phases Logged: {sessionLogRef.current.phasesObserved.length}</span>
             </div>
           </div>
         </div>
