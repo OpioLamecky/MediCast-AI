@@ -13,8 +13,8 @@ router = APIRouter(prefix="/payment", tags=["Payment"])
 # ─────────────────────────────────────────────────────────────
 # Recipient & Gateway Configuration
 # ─────────────────────────────────────────────────────────────
-RECIPIENT_PHONE = "0778543120"
-RECIPIENT_NAME = "Lameck Opio"
+RECIPIENT_PHONE = os.getenv("MOMO_RECIPIENT_PHONE", "0778543120")
+RECIPIENT_NAME = os.getenv("MOMO_RECIPIENT_NAME", "Lameck Opio")
 ACCOUNT_NAME = "Medicast AI"
 CURRENCY = "UGX"
 

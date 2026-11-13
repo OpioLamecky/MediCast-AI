@@ -229,6 +229,8 @@ export default function LiveSurgery() {
   const [isVirtualScope, setIsVirtualScope] = useState(false);
   const [videoDevices, setVideoDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const [facingMode, setFacingMode] = useState("environment");
+  const facingModeRef = useRef("environment");
   const [micEnabled, setMicEnabled] = useState(false);
   const [mirrorCamera, setMirrorCamera] = useState(false);
   const [hudVisible, setHudVisible] = useState(true);
@@ -381,7 +383,7 @@ export default function LiveSurgery() {
         const primaryConstraints = {
           video: targetDevice && targetDevice !== 'default'
             ? { deviceId: { exact: targetDevice }, width: { ideal: 1920 }, height: { ideal: 1080 } }
-            : { width: { ideal: 1920 }, height: { ideal: 1080 } },
+            : { facingMode: { ideal: facingModeRef.current }, width: { ideal: 1920 }, height: { ideal: 1080 } },
           audio: micEnabled
         };
         try {
@@ -400,7 +402,7 @@ export default function LiveSurgery() {
       } catch (primaryErr) {
         // If high-res or mic constraint failed (not permission denial), fallback to basic { video: true }
         if (primaryErr.name !== 'NotAllowedError' && primaryErr.name !== 'PermissionDeniedError') {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: facingModeRef.current } }, audio: false });
           if (micEnabled) setMicEnabled(false);
         } else {
           throw primaryErr;
@@ -573,6 +575,14 @@ export default function LiveSurgery() {
   }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-acquire stream if user switches camera device or mic while in live mode and not actively recording
+  const toggleCameraFacing = async () => {
+    const next = facingModeRef.current === "environment" ? "user" : "environment";
+    facingModeRef.current = next;
+    setFacingMode(next);
+    setSelectedDeviceId("");
+    if (mode === "live" && !isRecording) { await startCameraStream(""); }
+  };
+
   const handleDeviceChange = async (newDeviceId) => {
     setSelectedDeviceId(newDeviceId);
     if (mode === 'live' && !isRecording) {
@@ -1618,6 +1628,7 @@ export default function LiveSurgery() {
                     )}
                   </SelectContent>
                 </Select>
+          <Button type="button" variant="outline" size="sm" onClick={toggleCameraFacing} disabled={isRecording} className="mt-2 w-full text-xs">Switch to {facingMode === "environment" ? "Front" : "Back"} Camera</Button>
               </div>
             ) : (
               <div>

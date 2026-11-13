@@ -7,7 +7,7 @@
  *   Tier 3: Real-Time Optical Telemetry + Clinical Procedure Synthesis Fallback
  */
 
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || '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';
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || '';
 const GROQ_MODELS = [
   'openai/gpt-oss-120b',
   'openai/gpt-oss-20b',
