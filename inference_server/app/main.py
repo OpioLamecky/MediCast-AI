@@ -49,3 +49,6 @@ app.include_router(admin_router)
 
 from app.anatomy import router as anatomy_router
 app.include_router(anatomy_router)
+
+from app.history import router as history_router
+app.include_router(history_router)

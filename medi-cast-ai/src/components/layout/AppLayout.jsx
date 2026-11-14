@@ -17,7 +17,8 @@ import {
   LogOut,
   Layers,
   Shield,
-  Scan
+  Scan,
+  Calendar
 } from 'lucide-react';
 import { getSavedConversations, saveConversations, createNewChat } from '@/lib/chatStorage';
 import { useSubscription } from '@/lib/SubscriptionContext';
@@ -31,6 +32,7 @@ const navItems = [
   { path: '/architecture', label: 'OR Architecture', icon: Layers },
   { path: '/upload', label: 'Upload', icon: Upload },
   { path: '/analyses', label: 'Analyses', icon: Brain },
+  { path: '/history', label: 'History', icon: Calendar },
   { path: '/compare', label: 'Compare', icon: GitCompare },
   { path: '/assistant', label: 'AI Assistant', icon: MessageSquare },
   { path: '/subscription', label: 'Subscription', icon: Crown },

@@ -23,6 +23,7 @@ import AnalysisDetail from '@/pages/AnalysisDetail';
 import Assistant from '@/pages/Assistant';
 import Compare from '@/pages/Compare';
 import Subscription from '@/pages/Subscription';
+import OperationHistory from "@/pages/OperationHistory";
 import AnatomyScan from "@/pages/AnatomyScan";
 import AdminDashboard from "@/pages/AdminDashboard";
 import Architecture from '@/pages/Architecture';
@@ -45,7 +46,8 @@ const MainApp = () => {
         <Route path="/assistant" element={<Assistant />} />
         <Route path="/compare" element={<Compare />} />
         <Route path="/architecture" element={<Architecture />} />
-        <Route path="/anatomy-scan" element={<AnatomyScan />} />
+        <Route path="/history" element={<OperationHistory />} />
+            <Route path="/anatomy-scan" element={<AnatomyScan />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/subscription" element={<Subscription />} />
       </Route>
