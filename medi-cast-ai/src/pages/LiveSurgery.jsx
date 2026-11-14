@@ -1011,10 +1011,11 @@ export default function LiveSurgery() {
 
     if (recordedChunksRef.current.length > 0) {
       const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+    const archiveLive = (b) => { if (!b || !b.size) return; const fd = new FormData(); fd.append('file', b, `live_${Date.now()}.${ext}`); fd.append('title', `Live OR Operation (${new Date().toLocaleTimeString()})`); fd.append('source_type', 'live'); fd.append('duration_sec', String(Math.max(1, elapsedSeconds))); fetch('/api/history/upload', { method: 'POST', body: fd }).catch(() => {}); };
       let blob = new Blob(recordedChunksRef.current, { type: mimeType });
       if (blob.size > 0) {
         try {
-          blob = await makeVideoBlobSeekable(blob, Math.max(1, elapsedSeconds));
+          blob = await makeVideoBlobSeekable(blob, Math.max(1, elapsedSeconds)); archiveLive(blob);
         } catch (e) {
           console.warn('[LiveSurgery] Seekable patch skipped:', e);
         }
