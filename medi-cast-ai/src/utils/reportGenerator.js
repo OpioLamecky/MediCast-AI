@@ -254,3 +254,13 @@ export const generateFhirBundle = (video, analysis) => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a"); a.href = url; a.download = `${(video?.title || "case").replace(/[^a-z0-9]+/gi, "_")}_FHIR.json`; a.click(); URL.revokeObjectURL(url);
 };
+
+export const generateHospitalInvoicePdf = (hp) => {
+  const ors = hp.or_count || 1, inc = ors * 30, cases = hp.cases_this_month || 0;
+  const extra = Math.max(0, cases - inc), base = ors * 800000, over = extra * 50000, total = base + over;
+  const invNo = `MC-${hp.id || 1}-${new Date().toISOString().slice(0, 7).replace('-', '')}`;
+  const html = `<!doctype html><html><head><title>Invoice ${invNo}</title><style>@page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#1c1917;font-size:10.5pt}.hdr{border-bottom:3px solid #1b675a;padding-bottom:8px;margin-bottom:14px;display:flex;justify-content:space-between}h1{font-size:16pt;color:#1b675a;margin:0}table{width:100%;border-collapse:collapse;margin-top:14px;font-size:10pt}th,td{border:1px solid #d6d3d1;padding:8px;text-align:left}th{background:#f0fdfa}.tot{font-size:12pt;font-weight:bold;text-align:right;margin-top:14px}.foot{margin-top:26px;font-size:9pt;color:#57534e}</style></head><body><div class="hdr"><h1>MediCast AI  Hospital Invoice / LPO</h1><span>${invNo}  ${new Date().toISOString().slice(0, 10)}</span></div><p><strong>Bill To:</strong> ${hp.name} (${hp.location || 'Uganda'})<br><strong>Billing Mode:</strong> ${hp.billing_mode || 'Pilot'} | <strong>Cases Logged:</strong> ${cases} / ${inc} included</p><table><thead><tr><th>Description</th><th>Qty</th><th>Unit (UGX)</th><th>Amount (UGX)</th></tr></thead><tbody><tr><td>OR Safety & Telemetry Bundle (30 cases/OR)</td><td>${ors} OR(s)</td><td>800,000</td><td>${base.toLocaleString()}</td></tr><tr><td>Additional Surgical Cases (Beyond 30/OR)</td><td>${extra}</td><td>50,000</td><td>${over.toLocaleString()}</td></tr></tbody></table><div class="tot">Total Due: UGX ${total.toLocaleString()}</div><div class="foot">Prepared by MediCast AI  Fort Portal, Uganda  Authorized Sign-Off: ______________________</div></body></html>`;
+  const f = document.createElement('iframe'); f.style.display = 'none'; document.body.appendChild(f);
+  f.contentDocument.open(); f.contentDocument.write(html); f.contentDocument.close();
+  setTimeout(() => { f.contentWindow.focus(); f.contentWindow.print(); setTimeout(() => f.remove(), 2000); }, 250);
+};

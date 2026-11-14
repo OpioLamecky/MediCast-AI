@@ -18,11 +18,13 @@ async def scan_anatomy(body: ScanReq):
     if not body.image_base64.startswith("data:image"):
         raise HTTPException(status_code=400, detail="Expected base64 image")
     t0 = time.time()
-    model = os.getenv("VISION_MODEL", "openai/qwen3.8-27b")
+    edge = os.getenv("EDGE_AI_MODE", "false").lower() == "true"
+    model = os.getenv("EDGE_VISION_MODEL", "ollama/llava") if edge else os.getenv("VISION_MODEL", "openai/qwen3.8-27b")
+    extra = {"api_base": os.getenv("OLLAMA_API_BASE", "http://127.0.0.1:11434")} if edge else {}
     focus = "CT/MRI/X-ray/ultrasound slice (label organs, vessels, bones)" if body.scan_mode == "medical_imaging" else "external surface anatomy only"
     prompt = f"Pre-op surgical assistant reviewing {focus}. Region: {body.region}. Notes: {body.notes or 'None'}. Return ONLY JSON: anatomical_region, visible_landmarks (array), positioning_and_lighting, reference_zones (array), uncertainty_notes."
     try:
-        r = await litellm.acompletion(model=model, messages=[{"role":"user","content":[{"type":"text","text":prompt},{"type":"image_url","image_url":{"url":body.image_base64}}]}], max_tokens=700)
+        r = await litellm.acompletion(model=model, messages=[{"role":"user","content":[{"type":"text","text":prompt},{"type":"image_url","image_url":{"url":body.image_base64}}]}], max_tokens=700, **extra)
         raw = r.choices[0].message.content.strip().strip("`").lstrip("json").strip()
         try: parsed = json.loads(raw)
         except Exception: parsed = {"anatomical_region": body.region, "visible_landmarks": [raw], "positioning_and_lighting": "See summary", "reference_zones": [], "uncertainty_notes": "Non-diagnostic; verify clinically."}

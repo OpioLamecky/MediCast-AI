@@ -157,6 +157,7 @@ async def admin_overview(authorization: Optional[str] = Header(default=None)):
         "text_model": os.getenv("TEXT_MODEL", ""),
         "vision_model": os.getenv("VISION_MODEL", ""),
         "shadow_mode": True,
+        "edge_ai_mode": os.getenv("EDGE_AI_MODE", "false").lower() == "true",
         "total_events": 0,
         "ack_count": 0,
     }
@@ -269,3 +270,17 @@ async def log_hospital_case(hospital_id: int, authorization: Optional[str] = Hea
             raise HTTPException(status_code=404, detail="Hospital not found")
         await conn.execute("INSERT INTO admin_activities (actor_email, action, target, details) VALUES ($1, 'log_case', $2, $3)", actor, row["name"], f"cases={row['cases_this_month']}")
     return dict(row)
+
+class AckReq(BaseModel):
+    actor_email: str
+    event_label: str
+    shadow_mode: bool = True
+
+@router.post("/telemetry/ack")
+async def log_ack(body: AckReq):
+    pool = await get_db_pool()
+    if pool:
+        await ensure_admin_tables(pool)
+        async with pool.acquire() as conn:
+            await conn.execute("INSERT INTO admin_activities (actor_email, action, target, details) VALUES ($1, 'clinician_ack', $2, $3)", body.actor_email.lower(), body.event_label, f"shadow={body.shadow_mode}")
+    return {"status": "logged"}
