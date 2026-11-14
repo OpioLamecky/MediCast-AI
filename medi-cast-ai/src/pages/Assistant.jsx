@@ -238,7 +238,7 @@ export default function Assistant() {
           <div className="h-full min-h-[380px] flex items-center justify-center">
             <div className="max-w-md w-full bg-white rounded-3xl p-6 sm:p-7 border border-stone-200/90 shadow-sm text-center space-y-4">
               <img
-                src="/medicast-logo.png"
+                src="/logo.svg"
                 alt="MediCast AI"
                 className="h-12 w-auto object-contain mx-auto drop-shadow-xs"
               />

@@ -112,7 +112,7 @@ export default function AppLayout() {
         <div className="p-4 border-b border-stone-100 shrink-0">
           <Link to="/" className="flex items-center gap-3 group">
             <img
-              src="/medicast-logo.png"
+              src="/logo.svg"
               alt="MediCast AI"
               className="h-10 w-auto object-contain rounded-lg shadow-2xs group-hover:scale-105 transition-transform"
             />
@@ -290,7 +290,7 @@ export default function AppLayout() {
       <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b border-slate-200 z-30 px-4 py-2.5 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2">
           <img
-            src="/medicast-logo.png"
+            src="/logo.svg"
             alt="MediCast AI"
             className="h-8 w-auto object-contain rounded-md"
           />

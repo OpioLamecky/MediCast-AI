@@ -2652,7 +2652,7 @@ export default function LiveSurgery() {
           <div className="bg-[#0B1426] border-b border-slate-800 px-4 sm:px-6 py-3 flex items-center justify-between gap-4 shrink-0 shadow-lg flex-wrap">
             <div className="flex items-center gap-3">
               <img
-                src="/medicast-logo.png"
+                src="/logo.svg"
                 alt="Medicast AI"
                 className="h-10 w-auto object-contain rounded-md bg-white/5 p-1"
               />
