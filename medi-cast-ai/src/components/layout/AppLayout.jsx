@@ -15,7 +15,8 @@ import {
   ArrowRight,
   Lock,
   LogOut,
-  Layers
+  Layers,
+  Shield
 } from 'lucide-react';
 import { getSavedConversations, saveConversations, createNewChat } from '@/lib/chatStorage';
 import { useSubscription } from '@/lib/SubscriptionContext';
@@ -31,6 +32,7 @@ const navItems = [
   { path: '/compare', label: 'Compare', icon: GitCompare },
   { path: '/assistant', label: 'AI Assistant', icon: MessageSquare },
   { path: '/subscription', label: 'Subscription', icon: Crown },
+  { path: '/admin', label: 'Admin Console', icon: Shield },
 ];
 
 export default function AppLayout() {

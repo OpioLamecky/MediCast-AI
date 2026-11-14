@@ -22,6 +22,7 @@ import AnalysisDetail from '@/pages/AnalysisDetail';
 import Assistant from '@/pages/Assistant';
 import Compare from '@/pages/Compare';
 import Subscription from '@/pages/Subscription';
+import AdminDashboard from "@/pages/AdminDashboard";
 import Architecture from '@/pages/Architecture';
 import { SubscriptionProvider } from '@/lib/SubscriptionContext';
 
@@ -42,7 +43,8 @@ const MainApp = () => {
         <Route path="/assistant" element={<Assistant />} />
         <Route path="/compare" element={<Compare />} />
         <Route path="/architecture" element={<Architecture />} />
-        <Route path="/subscription" element={<Subscription />} />
+        <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/subscription" element={<Subscription />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

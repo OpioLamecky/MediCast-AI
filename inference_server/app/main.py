@@ -43,3 +43,6 @@ import asyncio
 async def startup_event():
     logger.info("Starting MediCast Inference Server...")
     asyncio.create_task(cleanup_old_data_task())
+
+from app.admin import router as admin_router
+app.include_router(admin_router)
