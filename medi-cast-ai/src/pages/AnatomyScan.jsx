@@ -39,7 +39,7 @@ export default function AnatomyScan() {
           <label className="px-3 py-1.5 rounded-lg border bg-white text-xs font-semibold flex items-center gap-1 cursor-pointer"><Upload className="w-3.5 h-3.5" /> Upload<input type="file" accept="image/*,.dcm" onChange={onUpload} className="hidden" /></label>
         </div>
       </div>
-      <div className="grid md:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="bg-white border rounded-xl p-4 space-y-3">
           <div className="aspect-video bg-stone-950 rounded-lg overflow-hidden flex items-center justify-center"><video ref={videoRef} playsInline muted className={`w-full h-full object-cover ${camOn ? '' : 'hidden'}`} />{!camOn && (preview ? <img src={preview} alt="Scan" className="w-full h-full object-contain" /> : <span className="text-stone-400 text-xs">Start camera or upload image / CT / MRI / X-ray</span>)}</div>
           <canvas ref={canvasRef} className="hidden" />
