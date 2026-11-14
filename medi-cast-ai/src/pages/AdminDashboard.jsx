@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { Shield, Activity, Users, Building2, CreditCard, Server, RefreshCw, UserPlus } from 'lucide-react';
 
@@ -21,11 +22,12 @@ export default function AdminDashboard() {
   const [assignHosp, setAssignHosp] = useState({});
   const [msg, setMsg] = useState('');
 
+  const getHdrs = async () => { const { data: sd } = await supabase.auth.getSession(); const t = sd?.session?.access_token || ''; return t ? { Authorization: `Bearer ${t}` } : {}; };
   const load = async () => {
     if (!email) return;
     setLoading(true); setError('');
     try {
-      const r = await fetch('/api/admin/overview', { headers: { 'X-Admin-Email': email } });
+      const r = await fetch('/api/admin/overview', { headers: await getHdrs() });
       if (!r.ok) throw new Error(await r.text());
       setData(await r.json());
     } catch (e) { setError(e.message || 'Failed to load'); }
@@ -34,7 +36,7 @@ export default function AdminDashboard() {
   useEffect(() => { load(); }, [email]);
   const postJson = async (url, body, okMsg) => {
     setMsg('');
-    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Email': email }, body: JSON.stringify(body) });
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await getHdrs()) }, body: JSON.stringify(body) });
     if (r.ok) { setMsg(okMsg); load(); } else { setMsg('Action failed'); }
   };
 

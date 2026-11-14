@@ -1,3 +1,4 @@
+import httpx
 import os, time, shutil, subprocess
 import psutil
 from fastapi import APIRouter, Header, HTTPException
@@ -51,10 +52,18 @@ async def ensure_admin_tables(pool):
                 ON CONFLICT (email) DO UPDATE SET role = 'super_admin', subscription_tier = 'hospital', subscription_status = 'active';
             """, email)
 
-async def require_admin(x_admin_email: Optional[str]):
-    email = (x_admin_email or "").strip().lower()
+async def require_admin(authorization: Optional[str] = None, x_admin_email: Optional[str] = None):
+    token = (authorization or "").replace("Bearer ", "").strip()
+    sb_url = os.getenv("SUPABASE_URL", "").rstrip("/")
+    sb_key = os.getenv("SUPABASE_ANON_KEY", "")
+    email = ""
+    if token and sb_url and sb_key:
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.get(f"{sb_url}/auth/v1/user", headers={"Authorization": f"Bearer {token}", "apikey": sb_key})
+            if r.status_code == 200:
+                email = (r.json().get("email") or "").strip().lower()
     if not email:
-        raise HTTPException(status_code=401, detail="Missing X-Admin-Email header")
+        raise HTTPException(status_code=401, detail="Valid Supabase session token required")
     if email in SUPER_ADMIN_EMAILS:
         return email
     pool = await get_db_pool()
@@ -123,8 +132,8 @@ async def sync_login(body: SyncUserReq):
     return {"email": email, "role": role, "subscription_tier": tier, "hospital_name": hospital_name}
 
 @router.get("/overview")
-async def admin_overview(x_admin_email: Optional[str] = Header(default=None)):
-    await require_admin(x_admin_email)
+async def admin_overview(authorization: Optional[str] = Header(default=None)):
+    await require_admin(authorization=authorization)
     mem = psutil.virtual_memory()
     disk = shutil.disk_usage("/")
     cpu_pct = psutil.cpu_percent(interval=0.2)
@@ -174,8 +183,8 @@ async def admin_overview(x_admin_email: Optional[str] = Header(default=None)):
     return {"health": health, "users": users, "subscribers": subscribers, "hospitals": hospitals, "activities": activities}
 
 @router.post("/users/onboard")
-async def onboard_user(body: OnboardUserReq, x_admin_email: Optional[str] = Header(default=None)):
-    actor = await require_admin(x_admin_email)
+async def onboard_user(body: OnboardUserReq, authorization: Optional[str] = Header(default=None)):
+    actor = await require_admin(authorization=authorization)
     email = body.email.strip().lower()
     if body.role not in ("user", "admin", "super_admin"):
         raise HTTPException(status_code=400, detail="Invalid role")
@@ -201,8 +210,8 @@ async def onboard_user(body: OnboardUserReq, x_admin_email: Optional[str] = Head
     return {"status": "ok", "email": email, "role": body.role}
 
 @router.post("/hospitals")
-async def create_hospital(body: HospitalReq, x_admin_email: Optional[str] = Header(default=None)):
-    actor = await require_admin(x_admin_email)
+async def create_hospital(body: HospitalReq, authorization: Optional[str] = Header(default=None)):
+    actor = await require_admin(authorization=authorization)
     pool = await get_db_pool()
     await ensure_admin_tables(pool)
     async with pool.acquire() as conn:
@@ -211,8 +220,8 @@ async def create_hospital(body: HospitalReq, x_admin_email: Optional[str] = Head
     return dict(row)
 
 @router.post("/users/assign-hospital")
-async def assign_hospital(body: AssignHospitalReq, x_admin_email: Optional[str] = Header(default=None)):
-    actor = await require_admin(x_admin_email)
+async def assign_hospital(body: AssignHospitalReq, authorization: Optional[str] = Header(default=None)):
+    actor = await require_admin(authorization=authorization)
     email = body.email.strip().lower()
     pool = await get_db_pool()
     await ensure_admin_tables(pool)
@@ -239,8 +248,8 @@ async def get_settings():
     return {"shadow_mode": shadow}
 
 @router.post("/settings/shadow-mode")
-async def set_shadow_mode(body: ShadowReq, x_admin_email: Optional[str] = Header(default=None)):
-    actor = await require_admin(x_admin_email)
+async def set_shadow_mode(body: ShadowReq, authorization: Optional[str] = Header(default=None)):
+    actor = await require_admin(authorization=authorization)
     pool = await get_db_pool()
     await ensure_admin_tables(pool)
     val = "true" if body.enabled else "false"
@@ -250,8 +259,8 @@ async def set_shadow_mode(body: ShadowReq, x_admin_email: Optional[str] = Header
     return {"shadow_mode": body.enabled}
 
 @router.post("/hospitals/{hospital_id}/log-case")
-async def log_hospital_case(hospital_id: int, x_admin_email: Optional[str] = Header(default=None)):
-    actor = await require_admin(x_admin_email)
+async def log_hospital_case(hospital_id: int, authorization: Optional[str] = Header(default=None)):
+    actor = await require_admin(authorization=authorization)
     pool = await get_db_pool()
     await ensure_admin_tables(pool)
     async with pool.acquire() as conn:
