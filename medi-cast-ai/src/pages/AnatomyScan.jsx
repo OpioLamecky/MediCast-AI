@@ -24,7 +24,7 @@ export default function AnatomyScan() {
   const flipCam = () => { const n = facing === 'environment' ? 'user' : 'environment'; setFacing(n); if (camOn) startCam(n); };
   const runScan = async (img) => { setLoading(true); setErr(''); setResult(null); try { const r = await fetch('/api/anatomy/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_base64: img, region, scan_mode: scanMode, notes, actor_email: user?.email || 'clinician@medicast.local' }) }); const d = await r.json(); if (!r.ok) throw new Error(d.detail || 'Scan failed'); setResult(d); } catch (e) { setErr(e.message); } finally { setLoading(false); } };
   const captureAndScan = () => { const v = videoRef.current, c = canvasRef.current; if (!v || !c) return; c.width = v.videoWidth || 640; c.height = v.videoHeight || 480; c.getContext('2d').drawImage(v, 0, 0, c.width, c.height); const u = c.toDataURL('image/jpeg', 0.85); setPreview(u); runScan(u); };
-  const onUpload = (e) => { const f = e.target.files?.[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { setPreview(rd.result); runScan(rd.result); }; rd.readAsDataURL(f); };
+  const onUpload = async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.name.toLowerCase().endsWith(".dcm")) { setScanMode("medical_imaging"); setLoading(true); setErr(""); setResult(null); try { const fd = new FormData(); fd.append("file", f); fd.append("region", region); fd.append("notes", notes); fd.append("actor_email", user?.email || "clinician@medicast.local"); const r = await fetch("/api/anatomy/scan-dicom", { method: "POST", body: fd }); const d = await r.json(); if (!r.ok) throw new Error(d.detail || "DICOM failed"); setPreview(d.preview_data_url || ""); setResult(d); } catch (ex) { setErr(ex.message); } finally { setLoading(false); } return; } const rd = new FileReader(); rd.onload = () => { setPreview(rd.result); runScan(rd.result); }; rd.readAsDataURL(f); };
   const a = result?.analysis, atlas = ATLAS[region] || ATLAS['General Surface'];
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-5">
@@ -36,7 +36,7 @@ export default function AnatomyScan() {
           <button onClick={() => setScanMode('medical_imaging')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${scanMode === 'medical_imaging' ? 'bg-teal-700 text-white' : 'bg-stone-100'}`}>Medical Scan Slice</button>
           <button onClick={() => camOn ? stopCam() : startCam()} className="px-3 py-1.5 rounded-lg bg-stone-900 text-white text-xs font-semibold flex items-center gap-1"><Camera className="w-3.5 h-3.5" /> {camOn ? 'Stop' : 'Camera'}</button>
           <button onClick={flipCam} className="px-3 py-1.5 rounded-lg border text-xs flex items-center gap-1"><RefreshCw className="w-3.5 h-3.5" /> {facing === 'environment' ? 'Front' : 'Back'}</button>
-          <label className="px-3 py-1.5 rounded-lg border bg-white text-xs font-semibold flex items-center gap-1 cursor-pointer"><Upload className="w-3.5 h-3.5" /> Upload<input type="file" accept="image/*" onChange={onUpload} className="hidden" /></label>
+          <label className="px-3 py-1.5 rounded-lg border bg-white text-xs font-semibold flex items-center gap-1 cursor-pointer"><Upload className="w-3.5 h-3.5" /> Upload<input type="file" accept="image/*,.dcm" onChange={onUpload} className="hidden" /></label>
         </div>
       </div>
       <div className="grid md:grid-cols-2 gap-5">

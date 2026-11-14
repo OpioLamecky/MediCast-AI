@@ -36,3 +36,24 @@ async def scan_anatomy(body: ScanReq):
                 await c.execute("INSERT INTO admin_activities (actor_email, action, target, details) VALUES ($1,'anatomy_scan',$2,$3)", (body.actor_email or "user").lower(), f"{body.scan_mode}:{body.region}", f"{ms}ms")
         except Exception: pass
     return {"status": "ok", "model": model, "latency_ms": ms, "analysis": parsed}
+from fastapi import UploadFile, File, Form
+import io, base64, numpy as np, pydicom
+from PIL import Image
+
+@router.post("/scan-dicom")
+async def scan_dicom(file: UploadFile = File(...), region: str = Form("Abdominal / Laparoscopic"), notes: str = Form(""), actor_email: str = Form("clinician@medicast.local")):
+    raw_bytes = await file.read()
+    try:
+        ds = pydicom.dcmread(io.BytesIO(raw_bytes))
+        arr = ds.pixel_array.astype(float)
+        if arr.ndim == 3:
+            arr = arr[arr.shape[0] // 2]
+        arr = ((arr - arr.min()) / max(arr.max() - arr.min(), 1e-5) * 255.0).astype(np.uint8)
+        buf = io.BytesIO()
+        Image.fromarray(arr).convert("RGB").save(buf, format="PNG")
+        data_url = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid DICOM file: {e}")
+    res = await scan_anatomy(ScanReq(image_base64=data_url, region=region, scan_mode="medical_imaging", notes=notes, actor_email=actor_email))
+    res["preview_data_url"] = data_url
+    return res

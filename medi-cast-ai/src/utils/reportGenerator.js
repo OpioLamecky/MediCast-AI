@@ -239,3 +239,18 @@ export const generatePdfReport = (video, analysis) => {
   f.contentDocument.open(); f.contentDocument.write(html); f.contentDocument.close();
   setTimeout(() => { f.contentWindow.focus(); f.contentWindow.print(); setTimeout(() => f.remove(), 2000); }, 250);
 };
+
+export const generateFhirBundle = (video, analysis) => {
+  const bundle = {
+    resourceType: "Bundle",
+    type: "document",
+    timestamp: new Date().toISOString(),
+    entry: [
+      { resource: { resourceType: "Procedure", status: "completed", code: { text: analysis?.procedure_type || video?.procedure || "Surgical Procedure" }, subject: { display: video?.patient_id || "OR-PATIENT-DEIDENTIFIED" }, performedDateTime: new Date().toISOString() } },
+      { resource: { resourceType: "DiagnosticReport", status: "preliminary", code: { text: "MediCast AI Operative Audit" }, conclusion: analysis?.executive_summary || analysis?.summary || "", extension: [{ url: "https://medicast.ai/safety-score", valueInteger: analysis?.safety_score ?? 0 }] } }
+    ]
+  };
+  const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/fhir+json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = `${(video?.title || "case").replace(/[^a-z0-9]+/gi, "_")}_FHIR.json`; a.click(); URL.revokeObjectURL(url);
+};

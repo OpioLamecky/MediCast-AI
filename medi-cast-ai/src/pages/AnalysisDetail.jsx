@@ -8,7 +8,7 @@ import { useToast } from '@/components/ui/use-toast';
 import ScoreRing from '@/components/analysis/ScoreRing';
 import PhaseTimeline from '@/components/analysis/PhaseTimeline';
 import RiskEventList from '@/components/analysis/RiskEventList';
-import { generateWordReport, generatePdfReport } from '@/utils/reportGenerator';
+import { generateWordReport, generatePdfReport, generateFhirBundle } from '@/utils/reportGenerator';
 import { useSubscription } from '@/lib/SubscriptionContext';
 
 export default function AnalysisDetail() {
