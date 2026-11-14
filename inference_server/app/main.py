@@ -46,3 +46,6 @@ async def startup_event():
 
 from app.admin import router as admin_router
 app.include_router(admin_router)
+
+from app.anatomy import router as anatomy_router
+app.include_router(anatomy_router)

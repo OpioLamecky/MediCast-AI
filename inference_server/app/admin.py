@@ -30,6 +30,11 @@ async def ensure_admin_tables(pool):
                 last_active_at TIMESTAMPTZ DEFAULT NOW(),
                 created_at TIMESTAMPTZ DEFAULT NOW()
             );
+            ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS or_count INTEGER DEFAULT 1;
+            ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS cases_this_month INTEGER DEFAULT 0;
+            ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS billing_mode TEXT DEFAULT 'Pilot';
+            CREATE TABLE IF NOT EXISTS system_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW());
+            INSERT INTO system_settings (key, value) VALUES ('shadow_mode', 'true') ON CONFLICT (key) DO NOTHING;
             CREATE TABLE IF NOT EXISTS admin_activities (
                 id SERIAL PRIMARY KEY,
                 actor_email TEXT NOT NULL,
@@ -83,6 +88,8 @@ class HospitalReq(BaseModel):
     name: str
     location: Optional[str] = ""
     tier: Optional[str] = "hospital"
+    or_count: Optional[int] = 1
+    billing_mode: Optional[str] = "Pilot"
 
 class AssignHospitalReq(BaseModel):
     email: str
@@ -140,6 +147,9 @@ async def admin_overview(x_admin_email: Optional[str] = Header(default=None)):
         },
         "text_model": os.getenv("TEXT_MODEL", ""),
         "vision_model": os.getenv("VISION_MODEL", ""),
+        "shadow_mode": True,
+        "total_events": 0,
+        "ack_count": 0,
     }
     users, hospitals, activities = [], [], []
     pool = await get_db_pool()
@@ -149,13 +159,17 @@ async def admin_overview(x_admin_email: Optional[str] = Header(default=None)):
             u_rows = await conn.fetch("SELECT email, full_name, role, hospital_id, hospital_name, subscription_tier, subscription_status, last_active_at, created_at FROM admin_users ORDER BY created_at DESC")
             users = [dict(r) for r in u_rows]
             h_rows = await conn.fetch("""
-                SELECT h.id, h.name, h.location, h.tier, h.created_at, COUNT(u.email)::int AS staff_count
+                SELECT h.id, h.name, h.location, h.tier, COALESCE(h.or_count,1) AS or_count, COALESCE(h.cases_this_month,0) AS cases_this_month, COALESCE(h.billing_mode,'Pilot') AS billing_mode, h.created_at, COUNT(u.email)::int AS staff_count
                 FROM hospitals h LEFT JOIN admin_users u ON u.hospital_id = h.id
                 GROUP BY h.id ORDER BY h.created_at DESC
             """)
             hospitals = [dict(r) for r in h_rows]
             a_rows = await conn.fetch("SELECT id, actor_email, action, target, details, created_at FROM admin_activities ORDER BY created_at DESC LIMIT 100")
             activities = [dict(r) for r in a_rows]
+            sm = await conn.fetchval("SELECT value FROM system_settings WHERE key = 'shadow_mode'")
+            health["shadow_mode"] = (sm != "false")
+            health["total_events"] = await conn.fetchval("SELECT COUNT(*)::int FROM admin_activities") or 0
+            health["ack_count"] = await conn.fetchval("SELECT COUNT(*)::int FROM admin_activities WHERE action = 'clinician_ack'") or 0
     subscribers = [u for u in users if u.get("subscription_tier") and u["subscription_tier"] != "free"]
     return {"health": health, "users": users, "subscribers": subscribers, "hospitals": hospitals, "activities": activities}
 
@@ -192,7 +206,7 @@ async def create_hospital(body: HospitalReq, x_admin_email: Optional[str] = Head
     pool = await get_db_pool()
     await ensure_admin_tables(pool)
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("INSERT INTO hospitals (name, location, tier) VALUES ($1, $2, $3) ON CONFLICT (name) DO UPDATE SET location = $2, tier = $3 RETURNING id, name, location, tier", body.name.strip(), body.location or "", body.tier or "hospital")
+        row = await conn.fetchrow("INSERT INTO hospitals (name, location, tier, or_count, billing_mode) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (name) DO UPDATE SET location = $2, tier = $3, or_count = $4, billing_mode = $5 RETURNING id, name, location, tier", body.name.strip(), body.location or "", body.tier or "hospital", body.or_count or 1, body.billing_mode or "Pilot")
         await conn.execute("INSERT INTO admin_activities (actor_email, action, target, details) VALUES ($1, 'create_hospital', $2, $3)", actor, body.name.strip(), body.location or "")
     return dict(row)
 
@@ -209,3 +223,40 @@ async def assign_hospital(body: AssignHospitalReq, x_admin_email: Optional[str] 
         await conn.execute("UPDATE admin_users SET hospital_id = $1, hospital_name = $2 WHERE email = $3", h["id"], h["name"], email)
         await conn.execute("INSERT INTO admin_activities (actor_email, action, target, details) VALUES ($1, 'assign_hospital', $2, $3)", actor, email, h["name"])
     return {"status": "ok", "email": email, "hospital": h["name"]}
+
+class ShadowReq(BaseModel):
+    enabled: bool
+
+@router.get("/settings")
+async def get_settings():
+    pool = await get_db_pool()
+    shadow = True
+    if pool:
+        await ensure_admin_tables(pool)
+        async with pool.acquire() as conn:
+            v = await conn.fetchval("SELECT value FROM system_settings WHERE key = 'shadow_mode'")
+            shadow = (v != "false")
+    return {"shadow_mode": shadow}
+
+@router.post("/settings/shadow-mode")
+async def set_shadow_mode(body: ShadowReq, x_admin_email: Optional[str] = Header(default=None)):
+    actor = await require_admin(x_admin_email)
+    pool = await get_db_pool()
+    await ensure_admin_tables(pool)
+    val = "true" if body.enabled else "false"
+    async with pool.acquire() as conn:
+        await conn.execute("INSERT INTO system_settings (key, value, updated_at) VALUES ('shadow_mode', $1, NOW()) ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()", val)
+        await conn.execute("INSERT INTO admin_activities (actor_email, action, target, details) VALUES ($1, 'shadow_mode', 'system', $2)", actor, f"enabled={val}")
+    return {"shadow_mode": body.enabled}
+
+@router.post("/hospitals/{hospital_id}/log-case")
+async def log_hospital_case(hospital_id: int, x_admin_email: Optional[str] = Header(default=None)):
+    actor = await require_admin(x_admin_email)
+    pool = await get_db_pool()
+    await ensure_admin_tables(pool)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("UPDATE hospitals SET cases_this_month = COALESCE(cases_this_month, 0) + 1 WHERE id = $1 RETURNING name, cases_this_month", hospital_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="Hospital not found")
+        await conn.execute("INSERT INTO admin_activities (actor_email, action, target, details) VALUES ($1, 'log_case', $2, $3)", actor, row["name"], f"cases={row['cases_this_month']}")
+    return dict(row)

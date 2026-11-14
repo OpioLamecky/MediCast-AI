@@ -1490,6 +1490,7 @@ export default function LiveSurgery() {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] p-4 sm:p-6 md:p-8 max-w-7xl mx-auto space-y-6 w-full max-w-full overflow-x-hidden">
+      <div className="bg-amber-50 border-b border-amber-200 px-4 py-1.5 text-center text-xs font-medium text-amber-900">Working Prototype  Demo Data Only  Not Clinically Validated (Governance: Phase 1 Shadow Mode)</div>
       {/* Hidden offscreen canvas for <1ms optical telemetry & frame capture */}
       <canvas ref={hiddenCanvasRef} className="hidden" />
 

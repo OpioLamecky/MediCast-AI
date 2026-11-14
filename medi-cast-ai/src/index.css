@@ -116,3 +116,7 @@
     position: relative;
   }
 }
+@media print {
+  aside, nav, button { display: none !important; }
+  main { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+}

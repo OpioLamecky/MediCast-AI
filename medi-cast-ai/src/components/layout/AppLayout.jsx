@@ -16,7 +16,8 @@ import {
   Lock,
   LogOut,
   Layers,
-  Shield
+  Shield,
+  Scan
 } from 'lucide-react';
 import { getSavedConversations, saveConversations, createNewChat } from '@/lib/chatStorage';
 import { useSubscription } from '@/lib/SubscriptionContext';
@@ -26,6 +27,7 @@ import SubscriptionModal from '@/components/subscription/SubscriptionModal';
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/live', label: 'Live Surgery', icon: Radio, isLive: true },
+  { path: '/anatomy-scan', label: 'Anatomy Scan', icon: Scan },
   { path: '/architecture', label: 'OR Architecture', icon: Layers },
   { path: '/upload', label: 'Upload', icon: Upload },
   { path: '/analyses', label: 'Analyses', icon: Brain },
