@@ -318,23 +318,30 @@ export default function AppLayout() {
         </div>
       </div>
 
-      {/* Mobile Bottom Nav */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-30 flex pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-        {navItems.map(item => {
-          const isActive = location.pathname === item.path;
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex-1 flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium ${
-                isActive ? 'text-teal-600' : 'text-slate-400'
-              }`}
-            >
-              <item.icon className="w-5 h-5" />
-              {item.label}
-            </Link>
-          );
-        })}
+      {/* Mobile Bottom Nav — horizontally swipeable for small screens */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-30 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <div
+          className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
+        >
+          {navItems.map(item => {
+            const isActive = location.pathname === item.path;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`shrink-0 min-w-[64px] flex flex-col items-center gap-1 py-2.5 px-2 text-[10px] font-medium snap-start transition-colors ${
+                  isActive ? 'text-teal-600' : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                <item.icon className={`w-5 h-5 ${isActive ? 'text-teal-600' : 'text-slate-400'}`} />
+                <span className="whitespace-nowrap">{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+        {/* Swipe hint — subtle right-fade gradient indicator */}
+        <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-white to-transparent" />
       </div>
 
       {/* Main Content Area (md:pl-64 guarantees perfect 100% width with ZERO horizontal scroll) */}

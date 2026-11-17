@@ -271,6 +271,13 @@ export default function LiveSurgery() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const orWallVideoRef = useRef(null);
 
+  // ── WHO Surgical Safety Checklist (3 Pauses) ──
+  const [whoChecklist, setWhoChecklist] = useState({
+    signIn: 'pending',   // 'pending' | 'done' | 'skipped'
+    timeOut: 'pending',
+    signOut: 'pending'
+  });
+
   // ── Refs ──
   const liveVideoRef = useRef(null);
   const prerecordedVideoRef = useRef(null);
@@ -879,6 +886,19 @@ export default function LiveSurgery() {
     };
   }, [mode, cameraStatus, isRecording, isWallScreenMode, aiWatchActive, isPaused, isPrerecordedPlaying, runSingleFrameAnalysis]);
 
+  // ── WHO Surgical Safety Checklist Handler ──
+  const handleWhoStep = (step, status) => {
+    setWhoChecklist(prev => ({ ...prev, [step]: status }));
+    if (status === 'skipped') {
+      const labels = { signIn: 'Sign In', timeOut: 'Time Out', signOut: 'Sign Out' };
+      toast({
+        title: `⚠️ WHO SSC WARNING: "${labels[step]}" was SKIPPED`,
+        description: 'A WHO Surgical Safety pause was skipped. This is visible to the entire OR team.',
+        variant: 'destructive'
+      });
+    }
+  };
+
   // ── Start Live Surgery Recording (Camera -> MediaRecorder) ──
   const startLiveRecording = () => {
     if (!mediaStreamRef.current || cameraStatus !== 'ready') {
@@ -913,6 +933,8 @@ export default function LiveSurgery() {
     setActiveBannerAlert(null);
     setElapsedSeconds(0);
     setAiWatchActive(true);
+    // Reset WHO Surgical Safety Checklist for new session
+    setWhoChecklist({ signIn: 'pending', timeOut: 'pending', signOut: 'pending' });
 
     const mimeCandidates = [
       'video/webm;codecs=vp9,opus',
@@ -3032,6 +3054,62 @@ export default function LiveSurgery() {
                     </div>
                     <span>Vital Signs OK</span>
                   </div>
+                </div>
+
+                {/* WHO Surgical Safety Checklist — 3 Pauses (Sign In / Time Out / Sign Out) */}
+                <div className="bg-slate-900/90 border border-blue-700/50 rounded-2xl p-3.5 shadow-md space-y-2">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-300">WHO SSC — 3 Pauses</span>
+                  </div>
+                  {[
+                    { key: 'signIn', label: 'Sign In', desc: 'Before anaesthesia', availableWhen: true },
+                    { key: 'timeOut', label: 'Time Out', desc: 'Before skin incision', availableWhen: whoChecklist.signIn !== 'pending' },
+                    { key: 'signOut', label: 'Sign Out', desc: 'Before patient leaves OR', availableWhen: whoChecklist.timeOut !== 'pending' }
+                  ].map(({ key, label, desc, availableWhen }) => {
+                    const status = whoChecklist[key];
+                    return (
+                      <div key={key} className={`rounded-xl p-2 border ${
+                        status === 'done' ? 'bg-emerald-900/30 border-emerald-700/40' :
+                        status === 'skipped' ? 'bg-red-900/40 border-red-600/50' :
+                        'bg-slate-800/60 border-slate-700/40'
+                      }`}>
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="min-w-0">
+                            <div className={`text-[11px] font-bold leading-tight ${
+                              status === 'done' ? 'text-emerald-300' :
+                              status === 'skipped' ? 'text-red-400' :
+                              'text-slate-200'
+                            }`}>
+                              {status === 'done' ? '✓ ' : status === 'skipped' ? '✗ ' : '⏳ '}{label}
+                            </div>
+                            <div className="text-[9px] text-slate-400 truncate">{desc}</div>
+                          </div>
+                          {status === 'pending' && availableWhen && (
+                            <div className="flex gap-1 shrink-0">
+                              <button
+                                onClick={() => handleWhoStep(key, 'done')}
+                                className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-600/80 hover:bg-emerald-500 text-white transition-colors"
+                              >Done</button>
+                              <button
+                                onClick={() => handleWhoStep(key, 'skipped')}
+                                className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-700/80 hover:bg-red-600 text-white transition-colors"
+                              >Skip</button>
+                            </div>
+                          )}
+                          {status === 'pending' && !availableWhen && (
+                            <span className="text-[9px] text-slate-500 italic shrink-0">locked</span>
+                          )}
+                          {status === 'skipped' && (
+                            <button
+                              onClick={() => handleWhoStep(key, 'done')}
+                              className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-700/70 hover:bg-emerald-600 text-white shrink-0 transition-colors"
+                            >Fix</button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 

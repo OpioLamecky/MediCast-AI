@@ -1179,25 +1179,668 @@ Meticulous hemostasis is paramount to prevent loss of visual anatomical planes a
    * In hepatic trauma or liver bed bleed: Temporary vascular inflow occlusion via the **Pringle Maneuver** (intermittent clamping of hepatoduodenal ligament, ≤15 min intervals).`;
   }
 
-  // 5. General Comprehensive Medical Response
-  return `### MediCast Clinical Intelligence Assessment
+  // 5. Cardiology
+  if (query.includes('cardiology') || query.includes('cardiac') || query.includes('heart') || query.includes('ecg') || query.includes('ekg') || query.includes('myocardial') || query.includes('infarction') || query.includes('arrhythmia') || query.includes('atrial') || query.includes('ventricular') || query.includes('coronary') || query.includes('angina') || query.includes('heart failure') || query.includes('cardiomyopathy')) {
+    return `### Cardiology — Clinical Assessment
 
-Thank you for your clinical query: *"**${message}**"*.
-
----
-
-### Core Surgical Principles & Telemetry
-In surgical decision-making and intraoperative navigation, practice is centered on:
-* **Accurate Anatomical Triangulation**: Identifying non-variant anatomical landmarks prior to tissue division.
-* **Avascular Fascial Plane Dissection**: Mobilizing organs along natural embryonic cleavage planes (e.g., Toldt's fascia, the Holy Plane) to minimize systemic inflammation and blood loss.
-* **Objective Kinematic Economy**: Limiting counter-productive tool reversals and keeping grasp forces strictly below micro-vascular shear thresholds (<1.8 N).
+**Cardiac physiology** centers on the heart's role as a double pump maintaining systemic and pulmonary circulation through coordinated electrical and mechanical events.
 
 ---
 
-### Recommended Protocol
-1. Verify patient preoperative diagnostic imaging (CT/MRI/Doppler) for vascular anomalies.
-2. Maintain active closed-loop communication between lead surgeon, anesthesiologist, and scrub nurse.
-3. Utilize MediCast AI's augmented vision overlay to confirm tissue boundary clearance prior to energy activation.`;
+### Key Cardiac Conditions
+
+**Myocardial Infarction (MI)**
+* **STEMI**: ST-elevation MI — full coronary artery occlusion. Immediate percutaneous coronary intervention (PCI) within 90 min ("door-to-balloon" target). Treat with dual antiplatelet therapy (aspirin + P2Y12 inhibitor), anticoagulation, and reperfusion.
+* **NSTEMI**: Non-ST elevation — partial occlusion. Risk-stratify with GRACE score; manage with antithrombotic therapy and early invasive strategy within 24–72 h.
+
+**Heart Failure**
+* **HFrEF** (EF < 40%): ACE inhibitor/ARB or ARNI + beta-blocker + MRA + SGLT2 inhibitor (GDMT quadruple therapy).
+* **HFpEF** (EF ≥ 50%): Treat congestion with diuretics; SGLT2 inhibitors reduce hospitalizations.
+
+**Arrhythmias**
+* **AF**: Rate control (beta-blockers, diltiazem) or rhythm control (cardioversion, antiarrhythmics, ablation); anticoagulate with NOAC if CHA₂DS₂-VASc ≥ 2 (men) or ≥ 3 (women).
+* **VT/VF**: ACLS — defibrillation, amiodarone 300 mg IV bolus, CPR cycles.
+* **Complete Heart Block**: Transcutaneous pacing → transvenous pacemaker.
+
+---
+
+### ECG Quick Reference
+| Finding | Likely Cause |
+|---|---|
+| ST elevation in II, III, aVF | Inferior STEMI (RCA) |
+| Wide QRS + LBBB pattern | LBBB or STEMI equivalent |
+| Prolonged QTc > 500 ms | Torsades risk — stop offending drug |
+| Delta wave + short PR | WPW syndrome |
+
+---
+
+### MediCast AI Role
+Real-time intraoperative cardiac monitoring integrates with live telemetry to flag hemodynamic compromise, arrhythmia onset, and ST changes visible on the OR Wall Screen.`;
+  }
+
+  // 6. Diabetes & Endocrinology
+  if (query.includes('diabetes') || query.includes('glucose') || query.includes('insulin') || query.includes('hyperglycemia') || query.includes('hypoglycemia') || query.includes('hba1c') || query.includes('glycated') || query.includes('endocrine') || query.includes('thyroid') || query.includes('adrenal') || query.includes('cortisol') || query.includes('hormone')) {
+    return `### Diabetes & Endocrinology — Clinical Assessment
+
+**Diabetes Mellitus** is a metabolic disorder characterized by chronic hyperglycemia due to impaired insulin secretion, insulin resistance, or both.
+
+---
+
+### Classification
+* **Type 1 DM**: Autoimmune beta-cell destruction → absolute insulin deficiency. Onset typically < 30 years. Requires insulin replacement (basal-bolus regimen). Monitor for DKA.
+* **Type 2 DM**: Progressive insulin resistance + relative insulin deficiency. First-line: Metformin (unless CKD/contrast concern). Stepwise addition: GLP-1 RA (semaglutide, dulaglutide), SGLT2 inhibitor (empagliflozin — cardiorenal protection), DPP-4 inhibitor, then insulin.
+* **Gestational DM (GDM)**: OGTT at 24–28 weeks. First-line: diet modification; add metformin/insulin if targets unmet (FBG < 95 mg/dL, 2h PPG < 120 mg/dL).
+
+---
+
+### Glycemic Targets
+| Parameter | Target |
+|---|---|
+| HbA1c (most patients) | < 7.0% |
+| Fasting plasma glucose | 80–130 mg/dL |
+| 2-h postprandial | < 180 mg/dL |
+
+---
+
+### Acute Complications
+* **DKA**: Glucose > 250, pH < 7.3, ketonemia. IV fluid resuscitation, insulin infusion (0.1 U/kg/h), potassium replacement, hourly glucose monitoring.
+* **HHS**: Glucose > 600, osmolarity > 320 mOsm/L, no significant ketosis. Aggressive IV fluids, slow glucose correction.
+* **Hypoglycemia** (< 70 mg/dL): Rule of 15 — 15 g fast-acting carbs, recheck in 15 min.
+
+---
+
+### Thyroid Quick Reference
+* **Hypothyroidism**: TSH ↑, fT4 ↓ → Levothyroxine replacement.
+* **Hyperthyroidism / Graves'**: TSH ↓, fT4 ↑, TRAb+ → Methimazole/PTU, radioiodine, or surgery.
+* **Thyroid storm**: Life-threatening — PTU + beta-blocker + corticosteroids + iodine solution (Lugol's).`;
+  }
+
+  // 7. Hypertension & Nephrology
+  if (query.includes('hypertension') || query.includes('blood pressure') || query.includes('antihypertensive') || query.includes('kidney') || query.includes('renal') || query.includes('nephrology') || query.includes('creatinine') || query.includes('proteinuria') || query.includes('dialysis') || query.includes('ckd') || query.includes('egfr')) {
+    return `### Hypertension & Nephrology — Clinical Assessment
+
+**Hypertension** is defined as sustained blood pressure ≥ 130/80 mmHg (ACC/AHA 2017) or ≥ 140/90 mmHg (ESC/ESH 2018).
+
+---
+
+### Classification (ACC/AHA)
+| Stage | Systolic | Diastolic |
+|---|---|---|
+| Elevated | 120–129 | < 80 |
+| Stage 1 HTN | 130–139 | 80–89 |
+| Stage 2 HTN | ≥ 140 | ≥ 90 |
+| Hypertensive Crisis | > 180 | > 120 |
+
+---
+
+### Management
+* **Lifestyle**: DASH diet, sodium < 2.3 g/day, aerobic exercise 150 min/week, weight reduction.
+* **First-line drugs**: Thiazide diuretic (HCTZ), ACE inhibitor (lisinopril), ARB (losartan), or CCB (amlodipine). In Black patients: CCB or thiazide preferred (ACE inhibitors less effective as monotherapy).
+* **Compelling indications**: DM or CKD → ACE inhibitor/ARB; HFrEF → ACE inhibitor + beta-blocker + MRA; post-MI → beta-blocker + ACE inhibitor.
+
+---
+
+### Chronic Kidney Disease (CKD)
+* Staged G1–G5 by eGFR, A1–A3 by albuminuria.
+* **Management**: BP target < 130/80; ACE inhibitor/ARB for proteinuric CKD; correct anemia (erythropoietin-stimulating agents, iron); phosphate binders for hyperphosphatemia.
+* **Renal replacement**: Hemodialysis (eGFR ≤ 10–15) or peritoneal dialysis; renal transplantation is the gold standard for ESRD.
+
+---
+
+### Hypertensive Emergency
+* End-organ damage (AKI, encephalopathy, aortic dissection, flash pulmonary edema). IV labetalol, nicardipine, or clevidipine. Reduce MAP by ≤ 25% in first hour, then gradually to 160/100 over next 2–6 h.`;
+  }
+
+  // 8. Pharmacology & Medications
+  if (query.includes('pharmacology') || query.includes('drug') || query.includes('medication') || query.includes('dosage') || query.includes('dose') || query.includes('antibiotic') || query.includes('penicillin') || query.includes('amoxicillin') || query.includes('paracetamol') || query.includes('acetaminophen') || query.includes('ibuprofen') || query.includes('analgesic') || query.includes('opioid') || query.includes('morphine') || query.includes('mechanism of action') || query.includes('pharmacokinetics')) {
+    return `### Pharmacology — Clinical Assessment
+
+**Pharmacology** is the science of drug-receptor interactions, encompassing pharmacokinetics (what the body does to the drug) and pharmacodynamics (what the drug does to the body).
+
+---
+
+### Pharmacokinetics (ADME)
+* **Absorption**: Oral bioavailability; first-pass metabolism reduces systemic availability (e.g., morphine F = 25–35%).
+* **Distribution**: Volume of distribution (Vd); lipophilic drugs cross BBB (e.g., benzodiazepines); highly protein-bound drugs (e.g., warfarin 99%) have smaller free fraction.
+* **Metabolism**: Hepatic CYP450 system (CYP3A4 handles ~50% of drugs). Inducers (rifampicin) ↑ metabolism; inhibitors (fluconazole) ↓ metabolism.
+* **Excretion**: Renal — dose-adjust with eGFR (e.g., aminoglycosides, vancomycin, metformin). Biliary excretion for some drugs.
+
+---
+
+### Key Drug Classes & Examples
+| Class | Example | Mechanism |
+|---|---|---|
+| Beta-blockers | Metoprolol | β1 antagonism → ↓ HR, ↓ BP |
+| ACE inhibitors | Lisinopril | Inhibit ACE → ↓ angiotensin II |
+| Statins | Atorvastatin | HMG-CoA reductase inhibitor → ↓ LDL |
+| NSAIDs | Ibuprofen | COX-1/COX-2 inhibition → ↓ prostaglandins |
+| Opioids | Morphine | μ-receptor agonist → analgesia + sedation |
+| Penicillins | Amoxicillin | Beta-lactam → inhibit cell wall synthesis |
+
+---
+
+### Antibiotic Stewardship Principles
+1. **Culture before antibiotics** whenever possible.
+2. **Narrow spectrum** as early as clinical response allows (de-escalation).
+3. **Duration** — most infections 5–7 days; avoid prolonged courses.
+4. **Renal dose adjustment** — aminoglycosides, vancomycin (trough monitoring), beta-lactams in severe CKD.
+5. **Allergies** — penicillin allergy: 1–2% true cross-reactivity with cephalosporins; test or use alternative class.`;
+  }
+
+  // 9. Oncology & Cancer
+  if (query.includes('cancer') || query.includes('oncology') || query.includes('tumor') || query.includes('tumour') || query.includes('malignant') || query.includes('malignancy') || query.includes('chemotherapy') || query.includes('radiation') || query.includes('radiotherapy') || query.includes('metastasis') || query.includes('carcinoma') || query.includes('lymphoma') || query.includes('leukemia') || query.includes('staging')) {
+    return `### Oncology — Clinical Assessment
+
+**Cancer** is a group of diseases characterized by uncontrolled cell division, invasion of adjacent tissues, and metastasis to distant sites via lymphatics or vasculature.
+
+---
+
+### Hallmarks of Cancer (Hanahan & Weinberg)
+1. Sustaining proliferative signaling (e.g., RAS/MAPK mutations)
+2. Evading growth suppressors (TP53, RB1 loss)
+3. Resisting cell death (BCL-2 overexpression)
+4. Enabling replicative immortality (telomerase)
+5. Inducing angiogenesis (VEGF)
+6. Activating invasion & metastasis (EMT)
+7. Reprogramming energy metabolism (Warburg effect)
+8. Evading immune destruction (PD-L1 expression)
+
+---
+
+### TNM Staging (AJCC)
+* **T** (Tumor): T0 (in situ) → T4 (local extension).
+* **N** (Nodes): N0 (no nodes) → N3 (distant nodal spread).
+* **M** (Metastasis): M0 vs M1.
+* **Stage I–IV** derived from TNM combination.
+
+---
+
+### Treatment Modalities
+* **Surgery**: Primary intent (curative resection) or palliative debulking. Margin status R0 (clear), R1 (microscopic), R2 (macroscopic) drives prognosis.
+* **Chemotherapy**: Cell-cycle phase-specific agents (e.g., vincristine — M phase) or non-specific (alkylating agents — cyclophosphamide).
+* **Radiation**: External beam (EBRT) or brachytherapy; measured in Gray (Gy).
+* **Targeted therapy**: Imatinib (BCR-ABL, CML), trastuzumab (HER2+), bevacizumab (anti-VEGF).
+* **Immunotherapy**: Anti-PD-1 (pembrolizumab, nivolumab), anti-CTLA-4 (ipilimumab); check-point inhibitor toxicities (irAE).
+
+---
+
+### Common Screening
+| Cancer | Screening |
+|---|---|
+| Colorectal | Colonoscopy every 10 y from age 45 |
+| Breast | Mammography every 1–2 y from age 40–50 |
+| Cervical | Pap smear + HPV co-test every 5 y |
+| Lung | Low-dose CT (heavy smokers, 50–80 y) |`;
+  }
+
+  // 10. Pediatrics
+  if (query.includes('pediatric') || query.includes('paediatric') || query.includes('child') || query.includes('newborn') || query.includes('infant') || query.includes('neonatal') || query.includes('neonate') || query.includes('toddler') || query.includes('adolescent') || query.includes('vaccination schedule') || query.includes('growth') || query.includes('development')) {
+    return `### Pediatrics — Clinical Assessment
+
+**Pediatrics** encompasses medical care from birth to 18 years, with distinct physiology, pharmacokinetics, and developmental milestones at each stage.
+
+---
+
+### Age-Based Classification
+| Stage | Age Range |
+|---|---|
+| Neonate | 0–28 days |
+| Infant | 1–12 months |
+| Toddler | 1–3 years |
+| Preschool | 3–6 years |
+| School-age | 6–12 years |
+| Adolescent | 12–18 years |
+
+---
+
+### Neonatal Essentials
+* **APGAR Score**: Appearance, Pulse, Grimace, Activity, Respiration — scored 0–2 each at 1 min and 5 min. Score ≥ 7 is reassuring.
+* **Neonatal resuscitation**: Warmth → dry → stimulate → position airway → bag-mask ventilation (rate 40–60/min, FiO₂ 21%) → chest compressions (3:1 ratio) → epinephrine if HR < 60.
+* **Hyperbilirubinemia**: Phototherapy threshold by gestational age and risk factors (Bhutani nomogram).
+
+---
+
+### Pediatric Drug Dosing Principles
+* **Weight-based**: mg/kg dosing. Always confirm weight before prescribing.
+* **Paracetamol**: 15 mg/kg/dose PO every 4–6 h (max 75 mg/kg/day).
+* **Ibuprofen** (> 3 months): 5–10 mg/kg/dose every 6–8 h.
+* **Amoxicillin**: 25–45 mg/kg/day in 2–3 divided doses (AOM: 90 mg/kg/day for high-dose protocol).
+
+---
+
+### Developmental Milestones
+| Age | Motor | Language | Social |
+|---|---|---|---|
+| 2 months | Lifts head | Social smile | Follows face |
+| 6 months | Sits with support | Babbles | Stranger awareness |
+| 12 months | Walks alone (12–15 m) | "Mama/Dada" specific | Separation anxiety |
+| 24 months | Runs, stairs | 2-word phrases | Parallel play |
+| 48 months | Hops, draws shapes | 4–5 word sentences | Cooperative play |`;
+  }
+
+  // 11. Obstetrics & Gynecology
+  if (query.includes('obstetric') || query.includes('pregnancy') || query.includes('prenatal') || query.includes('antenatal') || query.includes('labor') || query.includes('labour') || query.includes('delivery') || query.includes('maternal') || query.includes('fetus') || query.includes('fetal') || query.includes('postpartum') || query.includes('eclampsia') || query.includes('preeclampsia') || query.includes('gynaecology') || query.includes('gynecology') || query.includes('uterus') || query.includes('ovary') || query.includes('menstrual')) {
+    return `### Obstetrics & Gynaecology — Clinical Assessment
+
+**Obstetrics** covers antepartum, intrapartum, and postpartum care; **Gynaecology** addresses female reproductive system disorders outside pregnancy.
+
+---
+
+### Antenatal Care Schedule (WHO)
+* **First visit (< 12 wks)**: Dating ultrasound, FBC, blood group/Rh, rubella serology, syphilis/HIV/hepatitis B screening, urine culture, folic acid supplementation.
+* **11–14 wks**: First-trimester combined screening (nuchal translucency + PAPP-A + free β-hCG) for aneuploidy.
+* **18–20 wks**: Anomaly scan.
+* **24–28 wks**: OGTT (GDM screening), anti-D for Rh-negative mothers.
+* **36 wks onwards**: Group B Streptococcus (GBS) swab; discuss birth plan.
+
+---
+
+### Labour Stages
+* **Stage 1 — Latent**: Cervix 0–6 cm (may last 20 h in nulliparae). Active phase: 6–10 cm, > 0.5 cm/h dilation.
+* **Stage 2 — Pushing**: Fully dilated to delivery. ≤ 3 h (nullipara), ≤ 2 h (multipara) with epidural.
+* **Stage 3 — Placenta**: Delivery of placenta within 30 min. Active management: oxytocin 10 IU IM.
+
+---
+
+### Key Complications
+* **Pre-eclampsia**: BP ≥ 140/90 + proteinuria after 20 wks; treat with labetalol/nifedipine; deliver ≥ 37 wks (or emergently for severe features). Seizure prophylaxis: MgSO₄ 4 g IV load.
+* **Eclampsia**: Seizures in pre-eclamptic patient — MgSO₄ 4 g IV stat, delivery after stabilization.
+* **PPH** (> 500 mL blood loss): Oxytocin → misoprostol → tranexamic acid → balloon tamponade → surgical.`;
+  }
+
+  // 12. Neurology
+  if (query.includes('neurology') || query.includes('brain') || query.includes('stroke') || query.includes('seizure') || query.includes('epilepsy') || query.includes('dementia') || query.includes('alzheimer') || query.includes('parkinson') || query.includes('neuropathy') || query.includes('headache') || query.includes('migraine') || query.includes('meningitis') || query.includes('encephalitis') || query.includes('nerve') || query.includes('spine') || query.includes('spinal cord')) {
+    return `### Neurology — Clinical Assessment
+
+**Neurology** addresses disorders of the central nervous system (brain and spinal cord), peripheral nervous system, and neuromuscular junction.
+
+---
+
+### Stroke
+**"Time is Brain"** — 1.9 million neurons lost per minute of untreated ischaemic stroke.
+
+* **Ischaemic stroke** (85%): IV alteplase (tPA) within 4.5 h of onset (if no contraindications); mechanical thrombectomy for large vessel occlusion within 24 h.
+* **Haemorrhagic stroke** (15%): Reverse anticoagulation; blood pressure target MAP < 130 mmHg; neurosurgical consultation.
+* **FAST**: Face droop, Arm weakness, Speech slurred, Time to call emergency.
+
+---
+
+### Epilepsy & Status Epilepticus
+* **First-line ASMs**: Levetiracetam (safe in pregnancy/liver disease), valproate (broad spectrum, teratogenic), lamotrigine.
+* **Status epilepticus protocol**: Benzodiazepine (lorazepam 4 mg IV or midazolam IM) → Levetiracetam/phenytoin IV (20 mg/kg) → general anaesthesia (propofol/midazolam) if refractory (> 30 min).
+
+---
+
+### Common Neurological Presentations
+| Presentation | Key Diagnosis | Clue |
+|---|---|---|
+| Acute worst headache of life | Subarachnoid haemorrhage | LP: xanthochromia |
+| Progressive dementia + myoclonus | CJD | MRI DWI restriction |
+| Resting tremor + rigidity | Parkinson's | Bradykinesia, dopaminergic response |
+| Bilateral ascending weakness | Guillain-Barré | Albuminocytologic dissociation |
+| Papilloedema + headache | Raised ICP | CT/MRI before LP |
+
+---
+
+### Glasgow Coma Scale (GCS)
+Eyes (1–4) + Verbal (1–5) + Motor (1–6) = 3–15. Score ≤ 8 → consider intubation.`;
+  }
+
+  // 13. Psychiatry & Mental Health
+  if (query.includes('psychiatry') || query.includes('mental health') || query.includes('mental illness') || query.includes('depression') || query.includes('anxiety') || query.includes('schizophrenia') || query.includes('bipolar') || query.includes('ptsd') || query.includes('ocd') || query.includes('adhd') || query.includes('autism') || query.includes('psychosis') || query.includes('antidepressant') || query.includes('ssri') || query.includes('antipsychotic')) {
+    return `### Psychiatry & Mental Health — Clinical Assessment
+
+**Psychiatry** addresses disorders of mood, thought, perception, cognition, and behavior, diagnosed using DSM-5-TR / ICD-11 criteria.
+
+---
+
+### Major Depressive Disorder (MDD)
+**DSM-5 Criteria**: ≥ 5 of 9 symptoms for ≥ 2 weeks, including depressed mood or anhedonia:
+* Depressed mood, Anhedonia, Weight/appetite change, Sleep disturbance, Psychomotor changes, Fatigue, Worthlessness/guilt, Poor concentration, Suicidal ideation.
+* **Treatment**: SSRI (fluoxetine, sertraline) first-line. If no response at 4–8 weeks → switch SSRI or add augmentation (lithium, atypical antipsychotic). Severe: consider ECT.
+* **Always screen for bipolar** before prescribing antidepressants alone.
+
+---
+
+### Bipolar Disorder
+* **Bipolar I**: Manic episode ≥ 7 days (grandiosity, decreased sleep, talkativeness, impulsivity). Treat mania: lithium, valproate, olanzapine. Maintenance: lithium (monitor levels 0.6–1.2 mEq/L, renal/thyroid function).
+* **Bipolar II**: Hypomanic + major depressive episodes. Quetiapine or lamotrigine for depression.
+
+---
+
+### Schizophrenia
+* **Positive symptoms**: Hallucinations (auditory most common), delusions, disorganised speech.
+* **Negative symptoms**: Flat affect, alogia, avolition, anhedonia, asociality.
+* **Treatment**: Atypical antipsychotics (risperidone, olanzapine, quetiapine). Clozapine for treatment-resistant. Monitor metabolic syndrome. Long-acting injectables (LAI) improve adherence.
+
+---
+
+### Anxiety Disorders
+* **GAD**: Persistent excessive worry ≥ 6 months. SSRI/SNRI first-line; buspirone; CBT.
+* **Panic disorder**: Recurrent unexpected panic attacks. SSRI + CBT; avoid long-term benzodiazepines.
+* **PTSD**: Following trauma — intrusion, avoidance, negative cognition, hyperarousal. First-line: SSRI (sertraline, paroxetine) + trauma-focused CBT.
+
+---
+
+> [!IMPORTANT] Always assess suicide risk (ideation, plan, intent, means) in every psychiatric encounter. Activate safety planning and appropriate level of care if risk is elevated.`;
+  }
+
+  // 14. Orthopedics
+  if (query.includes('orthopedic') || query.includes('orthopaedic') || query.includes('fracture') || query.includes('bone') || query.includes('joint') || query.includes('ligament') || query.includes('tendon') || query.includes('dislocation') || query.includes('arthritis') || query.includes('osteoporosis') || query.includes('spine') || query.includes('back pain') || query.includes('hip replacement') || query.includes('knee')) {
+    return `### Orthopaedics — Clinical Assessment
+
+**Orthopaedics** addresses musculoskeletal disorders — bones, joints, ligaments, tendons, muscles, and the spine.
+
+---
+
+### Fracture Classification & Management
+* **Closed**: Skin intact over fracture. **Open (compound)**: Communication with external environment — IV antibiotics (cefazolin) stat, urgent surgical debridement and fixation.
+* **Gustilo-Anderson** (open fractures): Type I (< 1 cm wound, clean) → Type IIIC (vascular injury requiring repair).
+* **Management Principles (RICE + 3Rs)**: Rest, Ice, Compression, Elevation; Realign, Retain (cast/fixation), Rehabilitate.
+* **Internal fixation**: ORIF (open reduction internal fixation) — plates, screws, nails.
+* **External fixation**: Temporary stabilization for polytrauma or contaminated wounds.
+
+---
+
+### Common Fractures
+| Fracture | Mechanism | Key Management |
+|---|---|---|
+| Colles' (distal radius) | FOOSH | Cast → ORIF if displaced |
+| Neck of femur | Low-energy fall (osteoporotic) | Hemiarthroplasty / THA |
+| Vertebral compression | Osteoporosis or trauma | Bracing; kyphoplasty |
+| Tibial shaft | High-energy | Intramedullary nail |
+
+---
+
+### Arthritis
+* **OA**: Degenerative joint disease — joint space narrowing, osteophytes, subchondral sclerosis on X-ray. Conservative: physio, weight loss, NSAIDs, intra-articular corticosteroids. Surgical: total joint replacement.
+* **RA**: Autoimmune synovitis — symmetrical small-joint involvement, morning stiffness > 1 h, RF/anti-CCP+. DMARD therapy (methotrexate first-line) ± biologic (TNF-α inhibitor).
+
+---
+
+### Spine Emergencies
+* **Cauda equina syndrome**: Bladder/bowel dysfunction + bilateral leg weakness + saddle anaesthesia. MRI stat → emergency surgical decompression within 24–48 h.`;
+  }
+
+  // 15. Dermatology & Wound Care
+  if (query.includes('dermatology') || query.includes('skin') || query.includes('rash') || query.includes('lesion') || query.includes('wound') || query.includes('burn') || query.includes('eczema') || query.includes('psoriasis') || query.includes('melanoma') || query.includes('acne') || query.includes('cellulitis') || query.includes('dermatitis')) {
+    return `### Dermatology & Wound Care — Clinical Assessment
+
+**Dermatology** addresses disorders of the skin, hair, nails, and mucous membranes — the body's largest organ.
+
+---
+
+### Wound Classification
+| Class | Description | SSI Risk |
+|---|---|---|
+| Clean | Elective, uninfected, no GI/GU/respiratory entry | 1–2% |
+| Clean-contaminated | GI/GU/respiratory entered under controlled conditions | 5–10% |
+| Contaminated | Open fresh trauma, GI spillage | 15–20% |
+| Dirty/infected | Perforated viscus, devitalized tissue | > 30% |
+
+---
+
+### Burn Assessment
+* **Wallace Rule of Nines**: Head/neck = 9%, each arm = 9%, anterior trunk = 18%, posterior trunk = 18%, each leg = 18%, perineum = 1%.
+* **Parkland formula**: Fluid resuscitation = 4 mL × %TBSA burned × weight (kg) in first 24 h (Ringer's lactate; give 50% in first 8 h).
+* **Referral to burns unit**: > 10% TBSA, full-thickness burns, face/hands/feet/perineum, inhalation injury, circumferential burns.
+
+---
+
+### Common Skin Conditions
+* **Eczema (Atopic Dermatitis)**: Pruritic, flexural, chronically relapsing. Emollients + topical corticosteroids (mild: hydrocortisone; moderate-severe: betamethasone). Dupilumab for refractory.
+* **Psoriasis**: Silvery plaques on extensor surfaces. Topical: corticosteroids + vitamin D analogues. Systemic: methotrexate, biologics (adalimumab, secukinumab).
+* **Cellulitis**: Non-purulent spreading skin infection (usually streptococcal). PO cefalexin/amoxicillin-clavulanate. IV piperacillin-tazobactam for severe/MRSA risk.
+* **Melanoma**: ABCDE: Asymmetry, Border irregularity, Colour variation, Diameter > 6 mm, Evolution. Wide local excision ± sentinel lymph node biopsy.`;
+  }
+
+  // 16. Emergency Medicine & Trauma
+  if (query.includes('emergency') || query.includes('trauma') || query.includes('resuscitation') || query.includes('cpr') || query.includes('shock') || query.includes('als') || query.includes('acls') || query.includes('atls') || query.includes('triage') || query.includes('cardiac arrest') || query.includes('code blue') || query.includes('anaphylaxis') || query.includes('sepsis') || query.includes('septic')) {
+    return `### Emergency Medicine & Trauma — Clinical Assessment
+
+**Emergency medicine** delivers immediate assessment and treatment of acute illness and injury, guided by ACLS (Advanced Cardiovascular Life Support) and ATLS (Advanced Trauma Life Support) protocols.
+
+---
+
+### Cardiac Arrest — ACLS Algorithm
+1. Confirm unresponsiveness → activate emergency response → call for defibrillator.
+2. **High-quality CPR**: 100–120 compressions/min, depth 5–6 cm, full chest recoil, minimize interruptions.
+3. **Shockable rhythm (VF/pVT)**: Defibrillate (200 J biphasic) → 2 min CPR → Epinephrine 1 mg IV q3–5 min → Amiodarone 300 mg IV → recheck rhythm.
+4. **Non-shockable (PEA/asystole)**: CPR + epinephrine. Treat reversible causes (H's and T's).
+
+**H's**: Hypoxia, Hypovolemia, Hydrogen ion (acidosis), Hypo/hyperkalemia, Hypothermia.
+**T's**: Tension pneumothorax, Tamponade, Toxins, Thrombosis (PE/MI).
+
+---
+
+### Sepsis (Sepsis-3)
+* **Sepsis**: Life-threatening organ dysfunction (SOFA score ↑ ≥ 2) due to dysregulated host response to infection.
+* **Septic shock**: Sepsis + vasopressor requirement + lactate > 2 mmol/L.
+* **Hour-1 Bundle**: Blood cultures (before antibiotics) → broad-spectrum antibiotics → 30 mL/kg IV crystalloid → vasopressors if MAP < 65 → lactate measurement.
+
+---
+
+### Anaphylaxis
+* **First-line**: Epinephrine 0.5 mg IM (anterolateral thigh) — repeat every 5–15 min if needed.
+* **Adjuncts**: IV fluids, salbutamol (bronchospasm), antihistamine (H1+H2), hydrocortisone.
+* **Observation**: 6–12 h (biphasic reaction risk).
+
+---
+
+### ATLS Primary Survey (ABCDE)
+* **A** — Airway (c-spine protection)
+* **B** — Breathing (tension pneumothorax → needle decompression, chest drain)
+* **C** — Circulation (haemorrhage control, 2 large-bore IVs, permissive hypotension for uncontrolled haemorrhage)
+* **D** — Disability (GCS, pupils, glucose)
+* **E** — Exposure + Environment (undress patient, prevent hypothermia)`;
+  }
+
+  // 17. Nutrition, Obesity & Metabolic Medicine
+  if (query.includes('nutrition') || query.includes('diet') || query.includes('vitamin') || query.includes('deficiency') || query.includes('bmi') || query.includes('obesity') || query.includes('malnutrition') || query.includes('protein') || query.includes('calorie') || query.includes('micronutrient') || query.includes('iron deficiency') || query.includes('anaemia') || query.includes('anemia')) {
+    return `### Nutrition & Metabolic Medicine — Clinical Assessment
+
+**Clinical nutrition** addresses assessment and management of macro- and micronutrient needs in health and disease.
+
+---
+
+### Body Mass Index (BMI)
+| Category | BMI (kg/m²) |
+|---|---|
+| Underweight | < 18.5 |
+| Normal | 18.5–24.9 |
+| Overweight | 25–29.9 |
+| Obesity class I | 30–34.9 |
+| Obesity class II | 35–39.9 |
+| Obesity class III (severe) | ≥ 40 |
+
+---
+
+### Nutritional Deficiencies
+| Nutrient | Deficiency Syndrome | Key Sources |
+|---|---|---|
+| Iron | Microcytic anaemia, fatigue, koilonychia | Red meat, legumes |
+| B12 | Megaloblastic anaemia, subacute combined degeneration | Animal products |
+| Vitamin D | Rickets (child), osteomalacia (adult), immune dysregulation | Sunlight, oily fish |
+| Vitamin C | Scurvy (gum bleeding, wound healing failure) | Citrus, vegetables |
+| Folate | Neural tube defects (maternal), megaloblastic anaemia | Leafy greens |
+| Zinc | Impaired wound healing, alopecia, diarrhoea | Meat, shellfish |
+
+---
+
+### Obesity Management
+* **Lifestyle**: Caloric deficit 500–750 kcal/day; Mediterranean or low-carb diet; 150–300 min/wk moderate activity.
+* **Pharmacotherapy**: Semaglutide (GLP-1 RA, Wegovy) → ~15% weight loss; Tirzepatide (GLP-1/GIP dual agonist) → ~20–22% weight loss.
+* **Bariatric surgery**: BMI ≥ 40 (or ≥ 35 with comorbidities). Options: Roux-en-Y gastric bypass (gold standard), sleeve gastrectomy, adjustable gastric banding.
+
+---
+
+### Hospital Nutritional Support
+* **Enteral nutrition (EN)**: Preferred if GI tract functional. Start within 24–48 h in ICU patients.
+* **Parenteral nutrition (PN)**: Reserved for non-functional GI tract. Central PN for prolonged use. Monitor for refeeding syndrome (↓ phosphate, ↓ Mg, ↓ K).`;
+  }
+
+  // 18. Infectious Diseases
+  if (query.includes('infectious') || query.includes('infection') || query.includes('bacteria') || query.includes('bacterial') || query.includes('virus') || query.includes('viral') || query.includes('covid') || query.includes('hiv') || query.includes('aids') || query.includes('tuberculosis') || query.includes('malaria') || query.includes('fever') || query.includes('tropical') || query.includes('parasit') || query.includes('fungal') || query.includes('meningitis')) {
+    return `### Infectious Diseases — Clinical Assessment
+
+**Infectious diseases** are caused by pathogenic microorganisms (bacteria, viruses, fungi, parasites) and are a leading cause of morbidity and mortality worldwide.
+
+---
+
+### Empirical Antibiotic Selection by Syndrome
+| Syndrome | Likely Organism | Empirical Antibiotic |
+|---|---|---|
+| Community-acquired pneumonia | S. pneumoniae, atypicals | Amoxicillin + macrolide or respiratory FQ |
+| HAP/VAP | Gram-negatives, MRSA | Pip-tazo or meropenem ± vancomycin |
+| UTI (uncomplicated) | E. coli | Nitrofurantoin or trimethoprim |
+| Meningitis (adult) | N. meningitidis, S. pneumoniae | Ceftriaxone 2g q12h + dexamethasone |
+| Skin/soft tissue (MRSA risk) | MRSA | Vancomycin IV or clindamycin |
+| Intra-abdominal | Gram-neg enteric + anaerobes | Pip-tazo or meropenem |
+
+---
+
+### HIV/AIDS
+* **Diagnosis**: HIV-1/2 Ag/Ab combo assay; confirm with HIV-1 RNA (viral load).
+* **ART initiation**: Start same day as diagnosis regardless of CD4 count. Preferred: BIC/TAF/FTC or DTG/3TC.
+* **Opportunistic infections**: CD4 < 200 → PCP prophylaxis (co-trimoxazole); < 50 → MAC prophylaxis (azithromycin) + CMV retinitis screening.
+
+---
+
+### COVID-19 (SARS-CoV-2)
+* **Mild/moderate** (SpO₂ ≥ 95%): Nirmatrelvir-ritonavir (Paxlovid) within 5 days of symptoms for high-risk patients.
+* **Severe** (SpO₂ < 94%, requiring O₂): Dexamethasone 6 mg/day × 10 days; remdesivir × 5 days; baricitinib for severe.
+* **Critical (ICU)**: Prone positioning (12–16 h/day) if P/F ratio < 150.
+
+---
+
+### Malaria
+* **Diagnosis**: Thick and thin blood film + RDT.
+* **P. falciparum (severe)**: IV artesunate first-line; switch to artemether-lumefantrine orally once tolerating.
+* **P. vivax/ovale**: Chloroquine + primaquine (G6PD screen first to prevent haemolysis).`;
+  }
+
+  // 19. Vaccines & Immunology
+  if (query.includes('vaccine') || query.includes('vaccination') || query.includes('immunization') || query.includes('immunity') || query.includes('antibody') || query.includes('antigen') || query.includes('immune system') || query.includes('immunodeficiency') || query.includes('autoimmune') || query.includes('allergy') || query.includes('hypersensitivity')) {
+    return `### Vaccines & Immunology — Clinical Assessment
+
+**Immunology** is the study of the immune system's structure, function, and disorders; **vaccines** harness immunity to prevent infectious disease.
+
+---
+
+### Vaccine Types
+| Type | Example | Mechanism |
+|---|---|---|
+| Live attenuated | MMR, BCG, Yellow fever | Mimics natural infection → strong, durable immunity |
+| Inactivated | IPV, Hepatitis A, Influenza (IIV) | Killed pathogen → booster doses needed |
+| Subunit/protein | Hepatitis B, Pertussis (acellular), Shingrix | Specific antigen → safe in immunocompromised |
+| mRNA | COVID-19 (mRNA-1273, BNT162b2) | mRNA → host cell produces antigen |
+| Viral vector | COVID-19 (ChAdOx1) | Adenovirus delivers antigen DNA |
+| Conjugate | Hib, Meningococcal, PCV | Polysaccharide + protein carrier → T-cell dependent response |
+
+---
+
+### Standard Vaccine Schedule (Birth to 6 y — WHO EPI)
+* Birth: BCG, Hepatitis B (HepB-0).
+* 6 wks: OPV, DTP-HepB-Hib, PCV, Rotavirus.
+* 10 wks: OPV, DTP-HepB-Hib, PCV, Rotavirus.
+* 14 wks: OPV, DTP-HepB-Hib, PCV, IPV.
+* 9 months: MCV (measles), Yellow fever (endemic areas).
+* 12–18 months: MMR, Varicella.
+
+---
+
+### Hypersensitivity Reactions (Gell & Coombs)
+| Type | Mechanism | Example |
+|---|---|---|
+| I (Immediate/IgE) | Mast cell degranulation | Anaphylaxis, asthma, urticaria |
+| II (Cytotoxic/IgG) | Antibody-mediated cell destruction | Autoimmune haemolytic anaemia, Goodpasture's |
+| III (Immune complex) | Complement activation | SLE, serum sickness, post-strep GN |
+| IV (Delayed/T-cell) | T-cell mediated | Contact dermatitis, TB tuberculin test |
+
+---
+
+### Contraindications to Live Vaccines
+* Pregnancy, severe immunodeficiency (HIV with CD4 < 200, chemotherapy, high-dose steroids > 20 mg/day).
+* Severe allergic reaction to vaccine component.`;
+  }
+
+  // 20. Anatomy & Physiology
+  if (query.includes('anatomy') || query.includes('physiology') || query.includes('structure') || query.includes('organ') || query.includes('system') || query.includes('cell') || query.includes('tissue') || query.includes('muscle') || query.includes('vessel') || query.includes('nerve supply') || query.includes('blood supply') || query.includes('lymphatic')) {
+    return `### Anatomy & Physiology — Clinical Assessment
+
+**Anatomy** is the study of biological structures; **physiology** explains the mechanisms by which those structures function.
+
+---
+
+### Organisational Hierarchy
+Atom → Molecule → Organelle → Cell → Tissue → Organ → Organ System → Organism.
+
+---
+
+### Organ Systems Overview
+| System | Key Organs | Primary Function |
+|---|---|---|
+| Cardiovascular | Heart, blood vessels | Circulation of O₂, nutrients, hormones |
+| Respiratory | Lungs, diaphragm, airways | Gas exchange (O₂/CO₂) |
+| Digestive | GI tract, liver, pancreas | Nutrient absorption, detoxification |
+| Renal/Urinary | Kidneys, ureters, bladder | Fluid/electrolyte balance, waste excretion |
+| Nervous | Brain, spinal cord, nerves | Integration, sensation, motor control |
+| Endocrine | Pituitary, thyroid, adrenals, pancreas | Hormonal regulation |
+| Musculoskeletal | Bones, joints, muscles | Support, movement, protection |
+| Immune/Lymphatic | Lymph nodes, spleen, thymus | Defense, fluid homeostasis |
+| Reproductive | Gonads, uterus, ducts | Reproduction |
+| Integumentary | Skin, hair, nails | Barrier, thermoregulation |
+
+---
+
+### Key Physiological Principles
+* **Homeostasis**: Negative feedback maintains constant internal environment (e.g., thermoregulation, blood glucose, pH 7.35–7.45).
+* **Starling's Law of the Heart**: Stroke volume ↑ with preload (end-diastolic volume) up to a physiological limit.
+* **Laplace's Law**: Wall tension = Pressure × Radius / (2 × wall thickness) — explains aneurysm rupture risk.
+* **Henderson-Hasselbalch**: pH = pKa + log([A⁻]/[HA]); drives understanding of acid-base disorders.
+
+---
+
+### Surgical Anatomy Principles
+MediCast AI maps anatomical corridors in real time, identifying embryological fascial planes, neurovascular bundles (critical zones), and organ boundaries — displayed as augmented reality overlays on the OR Wall Screen.`;
+  }
+
+  // 5. General Comprehensive Medical Response — Universal fallback covering ANY health topic
+  const questionTopic = message.length > 60 ? message.substring(0, 60) + '...' : message;
+  return `### MediCast Medical Intelligence — Clinical Assessment
+
+**Your query:** *"${questionTopic}"*
+
+As MediCast AI — a comprehensive medical intelligence system covering **all areas of medicine and health** — here is a structured clinical assessment:
+
+---
+
+### Clinical Context & Relevant Principles
+
+Medicine integrates multiple disciplines to deliver patient-centered care. Based on your question, the following core clinical domains are relevant:
+
+* **History & Presentation**: A thorough history (HPC, PMH, medications, allergies, family and social history) is the cornerstone of clinical reasoning — over 80% of diagnoses are made from history alone.
+* **Examination**: Systematic physical examination guides differential diagnosis and informs urgency of investigation.
+* **Investigation**: Directed investigations (bloods, imaging, ECG, biopsy) confirm clinical suspicion. Order tests based on pre-test probability — not as a fishing expedition.
+* **Differential Diagnosis**: Always generate a broad differential, then narrow systematically using clinical probability (common conditions are common; rare conditions present atypically).
+* **Management**: Follow evidence-based guidelines (NICE, WHO, ACC/AHA, Cochrane evidence) for the specific condition. Individualize to patient comorbidities, organ function, and preferences.
+* **Patient Safety**: Apply WHO Surgical Safety Checklist principles in procedural contexts; medication reconciliation; infection control; falls prevention; pressure injury risk.
+
+---
+
+### Evidence-Based Approach
+1. **Identify** the core clinical problem (symptom, diagnosis, mechanism, or management question).
+2. **Classify** by body system and urgency (emergency / urgent / elective).
+3. **Apply** clinical guidelines relevant to the condition.
+4. **Consider** patient-specific factors (age, renal/hepatic function, pregnancy, allergies, comorbidities).
+5. **Monitor** treatment response with appropriate clinical and laboratory endpoints.
+
+---
+
+### MediCast AI Capabilities Across Medicine
+MediCast AI provides real-time intelligence across: **Surgery, Internal Medicine, Cardiology, Neurology, Oncology, Obstetrics, Pediatrics, Psychiatry, Emergency Medicine, Pharmacology, Infectious Diseases, Orthopedics, Dermatology, Endocrinology, Nephrology, Nutrition, Immunology, and Anatomy & Physiology.**
+
+For a more specific answer, please provide additional detail about your clinical query (e.g., patient age, specific symptom, condition name, drug query, or procedure type). MediCast AI will generate a targeted, evidence-grounded clinical response.`;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1236,9 +1879,15 @@ export async function sendChatMessage(message, history = []) {
   }
 
   // 2. Attempt Direct Groq Cloud Inference
-  const systemPrompt = `You are MediCast AI Assistant, an elite medical and surgical intelligence companion.
-You provide clear, highly structured, evidence-grounded insights for surgeons, clinicians, and researchers.
-Always format your response with clean markdown headings (###), bold bullet points, and clinical clarity. Never output broken single-line pipe tables.`;
+  const systemPrompt = `You are MediCast AI, a comprehensive medical intelligence assistant covering ALL areas of medicine and health. You respond with high clinical accuracy to questions on ANY medical topic including but not limited to: Surgery, Internal Medicine, Cardiology, Neurology, Psychiatry, Oncology, Obstetrics & Gynaecology, Paediatrics, Emergency Medicine, Pharmacology & Drug Mechanisms, Infectious Diseases, Orthopaedics, Dermatology, Endocrinology (Diabetes, Thyroid, Adrenal), Nephrology, Nutrition & Metabolic Medicine, Immunology, Vaccines, Anatomy, Physiology, Biochemistry, Pathology, Radiology, Preventive Medicine, Public Health, and all other health and medical fields.
+
+You are used by surgeons, physicians, nurses, medical students, and healthcare researchers. Always:
+- Format your response with clean markdown headings (###), bold key terms, and evidence-based content
+- Reference clinical guidelines (WHO, NICE, ACC/AHA, ACLS, ATLS) where applicable
+- Include structured tables for drug dosing, classification, or comparison where helpful
+- Never output broken single-line pipe tables — use proper markdown table formatting
+- Respond to ANY health or medical question the user asks, never refusing due to topic scope
+- Do NOT fabricate patient data or intraoperative metrics; clearly label simulated vs. real data`;
 
   const messages = [
     { role: 'system', content: systemPrompt },
