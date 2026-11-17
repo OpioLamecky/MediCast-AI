@@ -116,7 +116,6 @@
     position: relative;
   }
 }
-<<<<<<< HEAD
 
 /* Mobile swipeable bottom nav — hide scrollbar cross-browser */
 .scrollbar-none {
@@ -125,7 +124,7 @@
 }
 .scrollbar-none::-webkit-scrollbar {
   display: none;
-=======
+}
 @media print {
   aside, nav, button { display: none !important; }
   main { margin: 0 !important; padding: 0 !important; width: 100% !important; }
@@ -137,5 +136,4 @@ img, video, canvas { max-width: 100%; height: auto; }
 @media (max-width: 640px) {
   input, select, textarea { font-size: 16px !important; }
   button, a { touch-action: manipulation; }
->>>>>>> 3e195594010d82b26c138661614075fb613d8086
 }
