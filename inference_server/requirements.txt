@@ -11,3 +11,5 @@ openai>=1.0.0
 python-dotenv>=1.0.0
 litellm>=1.40.0
 psutil>=6.0.0
+pydicom>=2.4.0
+numpy>=1.26.0

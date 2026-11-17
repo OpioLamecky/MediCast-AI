@@ -218,7 +218,7 @@ export default function Register() {
         {/* Brand Header */}
         <div className="text-center space-y-2">
           <img
-            src="/medicast-logo.png"
+            src="/logo.svg"
             alt="MediCast AI"
             className="h-14 w-auto object-contain mx-auto drop-shadow-xs"
           />

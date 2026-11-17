@@ -35,32 +35,34 @@ class InferenceEngine:
 
     # Fallback chains — order matters (first = preferred)
     TEXT_FALLBACKS = [
-        "groq/openai/gpt-oss-120b",
-        "groq/openai/gpt-oss-20b",
-        "groq/qwen/qwen3.8-27b",
-        "gemini/gemini-2.5-flash",
-        "gemini/gemini-3.5-flash",
-        "gemini/gemini-3.5-flash-lite",
-        "huggingface/meta-llama/Llama-3.3-70B-Instruct",
-    ]
+    "openai/deepseek-v4.1-flash-1017",
+    "openai/glm-5.3-flash",
+    "openai/qwen3.8-flash-next",
+]
 
     VISION_FALLBACKS = [
-        "groq/qwen/qwen3.8-27b",
-        "gemini/gemini-2.5-flash",
-        "gemini/gemini-3.5-flash",
-        "gemini/gemini-3.5-flash-lite",
-        "fireworks_ai/accounts/fireworks/models/llama-v3p2-11b-vision-instruct",
-    ]
+    "openai/qwen3.8-27b",
+    "openai/nemotron-3-nano-omni-30b-a3b-reasoning",
+    "openai/qwen3.8-flash-next",
+]
 
     def __init__(self):
         # If the user set a specific TEXT_MODEL in .env, put it first in the chain
         custom_text = os.getenv("TEXT_MODEL")
         if custom_text and custom_text not in self.TEXT_FALLBACKS:
-            self.TEXT_FALLBACKS = [custom_text] + self.TEXT_FALLBACKS
+            self.TEXT_FALLBACKS = [
+    "openai/deepseek-v4.1-flash-1017",
+    "openai/glm-5.3-flash",
+    "openai/qwen3.8-flash-next",
+] + self.TEXT_FALLBACKS
 
         custom_vision = os.getenv("VISION_MODEL")
         if custom_vision and custom_vision not in self.VISION_FALLBACKS:
-            self.VISION_FALLBACKS = [custom_vision] + self.VISION_FALLBACKS
+            self.VISION_FALLBACKS = [
+    "openai/qwen3.8-27b",
+    "openai/nemotron-3-nano-omni-30b-a3b-reasoning",
+    "openai/qwen3.8-flash-next",
+] + self.VISION_FALLBACKS
 
         logger.info(f"InferenceEngine initialized — text chain: {self.TEXT_FALLBACKS}")
         logger.info(f"InferenceEngine initialized — vision chain: {self.VISION_FALLBACKS}")

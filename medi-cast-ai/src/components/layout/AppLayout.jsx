@@ -15,7 +15,10 @@ import {
   ArrowRight,
   Lock,
   LogOut,
-  Layers
+  Layers,
+  Shield,
+  Scan,
+  Calendar
 } from 'lucide-react';
 import { getSavedConversations, saveConversations, createNewChat } from '@/lib/chatStorage';
 import { useSubscription } from '@/lib/SubscriptionContext';
@@ -25,12 +28,15 @@ import SubscriptionModal from '@/components/subscription/SubscriptionModal';
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/live', label: 'Live Surgery', icon: Radio, isLive: true },
+  { path: '/anatomy-scan', label: 'Anatomy Scan', icon: Scan },
   { path: '/architecture', label: 'OR Architecture', icon: Layers },
   { path: '/upload', label: 'Upload', icon: Upload },
   { path: '/analyses', label: 'Analyses', icon: Brain },
+  { path: '/history', label: 'History', icon: Calendar },
   { path: '/compare', label: 'Compare', icon: GitCompare },
   { path: '/assistant', label: 'AI Assistant', icon: MessageSquare },
   { path: '/subscription', label: 'Subscription', icon: Crown },
+  { path: '/admin', label: 'Admin Console', icon: Shield },
 ];
 
 export default function AppLayout() {
@@ -112,7 +118,7 @@ export default function AppLayout() {
         <div className="p-4 border-b border-stone-100 shrink-0">
           <Link to="/" className="flex items-center gap-3 group">
             <img
-              src="/medicast-logo.png"
+              src="/logo.svg"
               alt="MediCast AI"
               className="h-10 w-auto object-contain rounded-lg shadow-2xs group-hover:scale-105 transition-transform"
             />
@@ -290,7 +296,7 @@ export default function AppLayout() {
       <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b border-slate-200 z-30 px-4 py-2.5 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2">
           <img
-            src="/medicast-logo.png"
+            src="/logo.svg"
             alt="MediCast AI"
             className="h-8 w-auto object-contain rounded-md"
           />

@@ -31,6 +31,7 @@ export default function UploadVideo() {
     notes: '',
   });
 
+  const archiveUpload = (f) => { if (!f) return; const fd = new FormData(); fd.append('file', f); fd.append('title', form?.title || f.name.replace(/\.[^/.]+$/, '')); fd.append('procedure_type', form?.procedure_type || 'Surgical Video'); fd.append('source_type', 'upload'); fetch('/api/history/upload', { method: 'POST', body: fd }).catch(() => {}); };
   const handleFile = (e) => {
     const f = e.target.files?.[0];
     if (f) setFile(f);

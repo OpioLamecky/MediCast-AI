@@ -373,7 +373,7 @@ export default function Architecture() {
       {/* ── Page Header ── */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-stone-200/80">
         <div className="flex items-center gap-3">
-          <img src="/medicast-logo.png" alt="Medicast AI" className="h-11 w-auto object-contain rounded-xl bg-white p-1 border border-stone-200/90 shadow-2xs" />
+          <img src="/logo.svg" alt="Medicast AI" className="h-11 w-auto object-contain rounded-xl bg-white p-1 border border-stone-200/90 shadow-2xs" />
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-stone-900 font-heading">
@@ -571,7 +571,7 @@ export default function Architecture() {
           {!hasStarted && (
             <div className="absolute inset-0 z-40 bg-stone-950/70 backdrop-blur-sm flex flex-col items-center justify-center gap-5">
               <div className="text-center space-y-2 px-6">
-                <img src="/medicast-logo.png" alt="Medicast AI" className="h-14 w-auto mx-auto rounded-2xl bg-white/10 p-1.5" />
+                <img src="/logo.svg" alt="Medicast AI" className="h-14 w-auto mx-auto rounded-2xl bg-white/10 p-1.5" />
                 <h2 className="text-white text-xl sm:text-2xl font-bold font-heading">
                   Medicast AI — Operating Room Simulation
                 </h2>

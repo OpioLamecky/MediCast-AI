@@ -1,3 +1,4 @@
+import WhoSafetyChecklist from "@/components/WhoSafetyChecklist";
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/api/supabaseClient';
@@ -229,6 +230,8 @@ export default function LiveSurgery() {
   const [isVirtualScope, setIsVirtualScope] = useState(false);
   const [videoDevices, setVideoDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const [facingMode, setFacingMode] = useState("environment");
+  const facingModeRef = useRef("environment");
   const [micEnabled, setMicEnabled] = useState(false);
   const [mirrorCamera, setMirrorCamera] = useState(false);
   const [hudVisible, setHudVisible] = useState(true);
@@ -388,7 +391,7 @@ export default function LiveSurgery() {
         const primaryConstraints = {
           video: targetDevice && targetDevice !== 'default'
             ? { deviceId: { exact: targetDevice }, width: { ideal: 1920 }, height: { ideal: 1080 } }
-            : { width: { ideal: 1920 }, height: { ideal: 1080 } },
+            : { facingMode: { ideal: facingModeRef.current }, width: { ideal: 1920 }, height: { ideal: 1080 } },
           audio: micEnabled
         };
         try {
@@ -407,7 +410,7 @@ export default function LiveSurgery() {
       } catch (primaryErr) {
         // If high-res or mic constraint failed (not permission denial), fallback to basic { video: true }
         if (primaryErr.name !== 'NotAllowedError' && primaryErr.name !== 'PermissionDeniedError') {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: facingModeRef.current } }, audio: false });
           if (micEnabled) setMicEnabled(false);
         } else {
           throw primaryErr;
@@ -580,6 +583,14 @@ export default function LiveSurgery() {
   }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-acquire stream if user switches camera device or mic while in live mode and not actively recording
+  const toggleCameraFacing = async () => {
+    const next = facingModeRef.current === "environment" ? "user" : "environment";
+    facingModeRef.current = next;
+    setFacingMode(next);
+    setSelectedDeviceId("");
+    if (mode === "live" && !isRecording) { await startCameraStream(""); }
+  };
+
   const handleDeviceChange = async (newDeviceId) => {
     setSelectedDeviceId(newDeviceId);
     if (mode === 'live' && !isRecording) {
@@ -1022,10 +1033,11 @@ export default function LiveSurgery() {
 
     if (recordedChunksRef.current.length > 0) {
       const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+    const archiveLive = (b) => { if (!b || !b.size) return; const fd = new FormData(); fd.append('file', b, `live_${Date.now()}.${ext}`); fd.append('title', `Live OR Operation (${new Date().toLocaleTimeString()})`); fd.append('source_type', 'live'); fd.append('duration_sec', String(Math.max(1, elapsedSeconds))); fetch('/api/history/upload', { method: 'POST', body: fd }).catch(() => {}); };
       let blob = new Blob(recordedChunksRef.current, { type: mimeType });
       if (blob.size > 0) {
         try {
-          blob = await makeVideoBlobSeekable(blob, Math.max(1, elapsedSeconds));
+          blob = await makeVideoBlobSeekable(blob, Math.max(1, elapsedSeconds)); archiveLive(blob);
         } catch (e) {
           console.warn('[LiveSurgery] Seekable patch skipped:', e);
         }
@@ -1502,6 +1514,8 @@ export default function LiveSurgery() {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] p-4 sm:p-6 md:p-8 max-w-7xl mx-auto space-y-6 w-full max-w-full overflow-x-hidden">
+      <div className="bg-amber-50 border-b border-amber-200 px-4 py-1.5 text-center text-xs font-medium text-amber-900">Working Prototype  Demo Data Only  Not Clinically Validated (Governance: Phase 1 Shadow Mode)</div>
+      <WhoSafetyChecklist />
       {/* Hidden offscreen canvas for <1ms optical telemetry & frame capture */}
       <canvas ref={hiddenCanvasRef} className="hidden" />
 
@@ -1640,6 +1654,7 @@ export default function LiveSurgery() {
                     )}
                   </SelectContent>
                 </Select>
+          <Button type="button" variant="outline" size="sm" onClick={toggleCameraFacing} disabled={isRecording} className="mt-2 w-full text-xs">Switch to {facingMode === "environment" ? "Front" : "Back"} Camera</Button>
               </div>
             ) : (
               <div>
@@ -2663,7 +2678,7 @@ export default function LiveSurgery() {
           <div className="bg-[#0B1426] border-b border-slate-800 px-4 sm:px-6 py-3 flex items-center justify-between gap-4 shrink-0 shadow-lg flex-wrap">
             <div className="flex items-center gap-3">
               <img
-                src="/medicast-logo.png"
+                src="/logo.svg"
                 alt="Medicast AI"
                 className="h-10 w-auto object-contain rounded-md bg-white/5 p-1"
               />

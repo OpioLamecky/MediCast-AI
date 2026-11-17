@@ -1,3 +1,4 @@
+import os
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,7 +22,7 @@ app = FastAPI(
 # Allow all origins for the frontend to connect
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[o.strip() for o in os.getenv("ALLOWED_ORIGINS", "https://155.138.162.68.sslip.io").split(",") if o.strip()],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,3 +43,12 @@ import asyncio
 async def startup_event():
     logger.info("Starting MediCast Inference Server...")
     asyncio.create_task(cleanup_old_data_task())
+
+from app.admin import router as admin_router
+app.include_router(admin_router)
+
+from app.anatomy import router as anatomy_router
+app.include_router(anatomy_router)
+
+from app.history import router as history_router
+app.include_router(history_router)

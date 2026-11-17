@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Activity, Mail, Lock, Eye, EyeOff, Loader2, KeyRound, ExternalLink, Check, CheckCircle2, AlertCircle } from "lucide-react";
 import GoogleIcon from "@/components/GoogleIcon";
 
-const DEFAULT_GOOGLE_CLIENT_ID = "678354836912-9tsolf2fbp1g5hino8eimnutic0tc2nc.apps.googleusercontent.com";
+const DEFAULT_GOOGLE_CLIENT_ID = '';
 
 // ── Decode Real Google JWT (Base64URL) ──
 function parseGoogleJwt(token) {
@@ -261,7 +261,7 @@ export default function Login() {
         {/* Brand Header */}
         <div className="text-center space-y-2">
           <img
-            src="/medicast-logo.png"
+            src="/logo.svg"
             alt="MediCast AI"
             className="h-14 w-auto object-contain mx-auto drop-shadow-xs"
           />
